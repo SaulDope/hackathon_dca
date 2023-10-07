@@ -49,6 +49,45 @@ export const counterABI = [
     name: 'Transfer',
   },
   {
+    stateMutability: 'pure',
+    type: 'function',
+    inputs: [
+      {
+        name: 'strategy',
+        internalType: 'struct DCAStructs.DCAStrategy',
+        type: 'tuple',
+        components: [
+          { name: 'paymentToken', internalType: 'address', type: 'address' },
+          { name: 'buyingToken', internalType: 'address', type: 'address' },
+          { name: 'perPeriodBuy', internalType: 'uint256', type: 'uint256' },
+          { name: 'blocksPerPeriod', internalType: 'uint256', type: 'uint256' },
+          { name: 'buysPerEpoch', internalType: 'uint256', type: 'uint256' },
+          {
+            name: 'buyEpochs',
+            internalType: 'struct DCAStructs.BuyEpochInfo[]',
+            type: 'tuple[]',
+            components: [
+              {
+                name: 'amountBought',
+                internalType: 'uint256',
+                type: 'uint256',
+              },
+              { name: 'amountPaid', internalType: 'uint256', type: 'uint256' },
+              {
+                name: 'keeperFeePaid',
+                internalType: 'uint256',
+                type: 'uint256',
+              },
+            ],
+          },
+          { name: 'buyCounter', internalType: 'uint256', type: 'uint256' },
+        ],
+      },
+    ],
+    name: 'getCurrentEpoch',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+  },
+  {
     stateMutability: 'nonpayable',
     type: 'function',
     inputs: [],
@@ -91,6 +130,18 @@ export const counterConfig = {
   address: counterAddress,
   abi: counterABI,
 } as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// DCAStructs
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const dcaStructsABI = [] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// DuelStructs
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const duelStructsABI = [] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ScriptBase
@@ -386,6 +437,33 @@ export function useCounterRead<
   return useContractRead({
     abi: counterABI,
     address: counterAddress[chainId as keyof typeof counterAddress],
+    ...config,
+  } as UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"getCurrentEpoch"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useCounterGetCurrentEpoch<
+  TFunctionName extends 'getCurrentEpoch',
+  TSelectData = ReadContractResult<typeof counterABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>,
+    'abi' | 'address' | 'functionName'
+  > & { chainId?: keyof typeof counterAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractRead({
+    abi: counterABI,
+    address: counterAddress[chainId as keyof typeof counterAddress],
+    functionName: 'getCurrentEpoch',
     ...config,
   } as UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>)
 }
