@@ -12,7 +12,7 @@ export function Connect() {
 
   // New state to manage the modal's visibility
   const [showModal, setShowModal] = useState(false);
-  const modalRef = useRef(null);
+  const modalRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     function handleClickOutside(event: { target: any }) {
@@ -74,7 +74,7 @@ export function Connect() {
                   }}
                 >
                   <img src={`/${x.name.toLowerCase()}.svg`} alt={x.name} />
-                  {x.name}
+                  {x.name.toUpperCase()}
                   {isLoading &&
                     x.id === pendingConnector?.id &&
                     " (connecting)"}

@@ -13,8 +13,8 @@ export function Account() {
   const [showNetworkModal, setShowNetworkModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
 
-  const networkModalRef = useRef(null);
-  const accountModalRef = useRef(null);
+  const networkModalRef = useRef<HTMLDivElement | null>(null);
+  const accountModalRef = useRef<HTMLDivElement | null>(null);
 
   function shortenAddress(addr: string) {
     if (addr.length <= 8) {
@@ -56,19 +56,25 @@ export function Account() {
           className="connect-btn"
           onClick={() => setShowNetworkModal(true)}
         >
-          {chain?.name && (
-            <img src={`/${chain.name.toLowerCase()}.svg`} alt={chain.name} />
+          {chain?.name?.includes(chain.id.toString()) ? (
+            <>
+              <img src="/unknown.png" />
+              {chain.name}
+            </>
+          ) : (
+            <>
+              <img src={`/${chain?.name.toLowerCase()}.svg`} />
+              {chain?.name.toUpperCase()}
+            </>
           )}
-          {chain?.name?.toUpperCase() ?? chain?.id}
         </button>
         <button
           className="connect-btn"
           onClick={() => setShowAccountModal(true)}
         >
-          {shortenAddress(address)}
+          {address ? shortenAddress(address) : "No Address"}
         </button>
       </div>
-
       {showNetworkModal && (
         <div className="modal" ref={networkModalRef}>
           <div className="modal-header">
@@ -83,6 +89,25 @@ export function Account() {
           <div className="modal-content">
             {switchNetwork && (
               <div>
+                {/* Current connected network */}
+                <div className="wallet-option">
+                  {chain?.name.includes(chain.id.toString()) ? (
+                    <>
+                      <img src="/unknown.png" />
+                      {chain.name}
+                    </>
+                  ) : (
+                    <>
+                      <img src={`/${chain?.name.toLowerCase()}.svg`} />
+                      {chain?.name.toUpperCase()}
+                    </>
+                  )}
+                  <span className="connected-indicator">
+                    CONNECTED <span className="green-dot"></span>
+                  </span>
+                </div>
+
+                {/* Other available networks */}
                 {chains.map((x) =>
                   x.id === chain?.id ? null : (
                     <div
@@ -93,7 +118,7 @@ export function Account() {
                         setShowNetworkModal(false);
                       }}
                     >
-                      <img src={`/${x.name.toLowerCase()}.svg`} alt={x.name} />
+                      <img src={`/${x.name.toLowerCase()}.svg`} />
                       {x.name.toUpperCase()}
                       {isLoading && x.id === pendingChainId && " (SWITCHING)"}
                     </div>
@@ -104,7 +129,6 @@ export function Account() {
           </div>
         </div>
       )}
-
       {showAccountModal && (
         <div className="modal" ref={accountModalRef}>
           <div className="modal-header">
@@ -117,8 +141,14 @@ export function Account() {
             </button>
           </div>
           <div className="modal-content">
-            <div className="wallet-option" onClick={disconnect}>
-              <img src="/logout.png" alt="Wallet Icon" />
+            <div
+              className="wallet-option"
+              onClick={(e) => {
+                e.preventDefault();
+                disconnect();
+              }}
+            >
+              <img src="/logout.png" />
               {`DISCONNECT WALLET`}
             </div>
           </div>
