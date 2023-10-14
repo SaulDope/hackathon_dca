@@ -27,6 +27,7 @@ library DCAStructs {
         uint256 buyCounter;
         uint256 buyBalance;
         bool disabled;
+        bool depositsDisabled;
         uint256 lastBuyBlock;
     }
 }
@@ -40,6 +41,14 @@ contract Counter {
     
     event NewStrategy(uint256 strategyId, DCAStructs.DCAStrategy strategy);
 
+    function listStrategies(uint256 firstStrategyId, uint256 numStrategies) external view returns (DCAStructs.DCAStrategy[] memory strategyData) {
+        require(strategyCounter >= firstStrategyId + numStrategies, "not that many strategies exist");
+        strategyData = new DCAStructs.DCAStrategy[](numStrategies);
+        for (uint256 i = 0; i < numStrategies; i++) {
+            strategyData[i] = strategies[firstStrategyId + i];
+        }
+    }
+
     function createNewStrategy(address paymentToken, address buyingToken, uint256 blocksPerPeriod, uint256 buysPerEpoch) public {
         require(msg.sender == owner, "only owner");
         require(buysPerEpoch >= 1, "invalid epoch length");
@@ -52,6 +61,7 @@ contract Counter {
             buyCounter: 0,
             buyBalance: 0,
             disabled: false,
+            depositsDisabled: false,
             lastBuyBlock: block.number
         });
         strategyCounter += 1;
@@ -66,26 +76,120 @@ contract Counter {
         return (userAmountPaid * epochInfo.amountBought) / epochInfo.amountPaid;
     }
 
+    /*
+        This function only calculates balances for completed epochs.
 
-    function calculateBalancesOwed(uint256 strategyId, address withdrawer) public view {
+        Gets strategy and user info
+        gets current epoch
+        checks for transitory epoch for user and adds to balance
+        checks how many epochs user could buy, then calcs owed for each
+        returns WITHOUT STATE UPDATES
+    */
+    function calculatePurchasesOwedAndBalanceSpent(uint256 strategyId, address withdrawer) public view returns (uint256 amountOwed, uint256 amountSpent) {
         require(strategyId < strategyCounter, "invalid strategyId");
         DCAStructs.DCAStrategy memory strategy = strategies[strategyId];
         DCAStructs.UserBuyInfo memory userInfo = userBuyInfos[withdrawer][strategyId];
+        require(userInfo.perBuyAmount > 0 || userInfo.lastBuyAmountForTransitoryEpoch > 0, "no buys set, nothing to withdraw");
         uint256 currentEpoch = getCurrentEpoch(strategy);
-        require(currentEpoch > userInfo.enteringEpochId, "can't withdraw yet");
-        uint256 amountOwed = 0;
-        uint256 amountSpent = 0;
-        if (userInfo.lastBuyAmountForTransitoryEpoch != 0) {
+        // if at least entering next epoch, then the transitory epoch has completed
+        if (userInfo.lastBuyAmountForTransitoryEpoch != 0 && currentEpoch >= userInfo.enteringEpochId) {
             DCAStructs.BuyEpochInfo memory transitoryEpochInfo = buyEpochs[strategyId][userInfo.enteringEpochId - 1];
-            amountSpent += userInfo.lastBuyAmountForTransitoryEpoch * strategy.buysPerEpoch;
             amountOwed += calculateUserCut(userInfo.lastBuyAmountForTransitoryEpoch * strategy.buysPerEpoch, transitoryEpochInfo);
-        }
-        for (uint256 epochId = userInfo.enteringEpochId; epochId < currentEpoch; epochId++) {
-            DCAStructs.BuyEpochInfo memory epochInfo = buyEpochs[strategyId][epochId];
-            amountSpent += userInfo.perBuyAmount * strategy.buysPerEpoch;
-            amountOwed += calculateUserCut(userInfo.perBuyAmount * strategy.buysPerEpoch, epochInfo);
+            amountSpent += userInfo.lastBuyAmountForTransitoryEpoch * strategy.buysPerEpoch;
         }
 
+        uint256 userBalanceAfterTransitory = userInfo.buyBalance - (userInfo.lastBuyAmountForTransitoryEpoch * strategy.buysPerEpoch);
+        uint256 finalBuyableEpoch = (userBalanceAfterTransitory / (userInfo.perBuyAmount * strategy.buysPerEpoch)) + userInfo.enteringEpochId;
+        // if finalBuyable is 23, current is 20, then loop cutoff 20
+        // if finalBuyable is 20, current is 23, then cutoff is 20
+        uint256 loopCutoff = finalBuyableEpoch > currentEpoch ? currentEpoch : finalBuyableEpoch;
+
+        for (uint256 epochId = userInfo.enteringEpochId; epochId < loopCutoff; epochId++) {
+            DCAStructs.BuyEpochInfo memory epochInfo = buyEpochs[strategyId][epochId];
+            amountOwed += calculateUserCut(userInfo.perBuyAmount * strategy.buysPerEpoch, epochInfo);
+            amountSpent += userInfo.perBuyAmount * strategy.buysPerEpoch;
+        }
+        return (amountOwed, amountSpent);
+    }
+
+    function isEpochComplete(DCAStructs.DCAStrategy memory strategy, uint256 epochId) pure internal  returns (bool) {
+        return (strategy.buyCounter >= strategy.buysPerEpoch * (epochId + 1));
+    }
+
+    function isInMiddleOfEpoch(DCAStructs.DCAStrategy memory strategy) pure internal returns (bool) {
+        return (strategy.buyCounter % strategy.buysPerEpoch != 0);
+    }
+
+    function getFinalBuyEpochIdForUser(uint256 strategyId, address withdrawer) public view returns (uint256) {
+        DCAStructs.DCAStrategy storage strategy = strategies[strategyId];
+        DCAStructs.UserBuyInfo storage userInfo = userBuyInfos[withdrawer][strategyId];
+        uint256 userBuysPerEpoch = userInfo.perBuyAmount * strategy.buysPerEpoch;
+        uint256 buyableEpochs = userInfo.buyBalance / userBuysPerEpoch;
+        return userInfo.enteringEpochId + buyableEpochs;
+    }
+
+    /*
+        Updates strategy per epoch buy reduction cliffs based on a user exiting the strategy
+        PRE-EXISTING:
+            the epoch after the users last buy has a buy reduction for the users buy.
+            EG:
+                if user was buying .1 ETH per buy, and their last epoch was 20, epoch 21 would have a subtraction cliff of .1
+                this is so that the protocol does not buy for the user when they no longer have a balance
+        DESIRED OUTCOME:
+            IF the users final epoch has already passed or has been started, the cliff was/will be used properly and no cliff moving is needed
+            ELSE
+            find the new users final buy epoch and move the subtraction there.  This will either be the current epoch if no buys have occured yet,
+            OR the epoch after that if the current epoch has already started.
+            EG:
+                if user was buying .1 ETH per buy, and their last epoch was 20, epoch 21 would have a subtraction cliff of .1
+                ex 1: 
+                    current epoch is 23
+                    the strategies buy was updated when epoch 21 started using its cliffs, so the users cliffs have already been updated. nothing needed.
+                ex 2: 
+                    current epoch is 20, and has started
+                    the epoch cliff at 21 will still be used correctly, no changes are needed
+                ex 3: 
+                    current epoch is 15, and has started.
+                    epoch 21 no longer needs the subtraction cliff for the user, so that subtraction cliff is reduced by .1
+                    epoch 15 has started so the buy for this epoch should not be subtracted.
+                    epoch 16 will no longer have the user buying, so it should have a subtraction cliff of .1 (moved from 21)
+                ex 4: 
+                    current epoch is 15, and has NOT started.
+                    epoch 21 no longer needs the subtraction cliff for the user, so that subtraction cliff is reduced by .1
+                    epoch 15 has NOT started so the buy for this epoch should have a subtraction cliff of .1 (moved from 21)
+    */
+    function updateCliffsFromWithdraw(uint256 strategyId, address withdrawer) internal {
+        DCAStructs.DCAStrategy storage strategy = strategies[strategyId];
+        DCAStructs.UserBuyInfo storage userInfo = userBuyInfos[withdrawer][strategyId];
+        uint256 currentEpoch = getCurrentEpoch(strategy);
+        uint256 originalFinalUserBuyEpochId = getFinalBuyEpochIdForUser(strategyId, withdrawer);
+        bool isInMiddleOfCurrentEpoch = isInMiddleOfEpoch(strategy);
+        // if cliffs are passed already OR if cliff is about to be used and cannot be removed, no need to update
+        if (currentEpoch > originalFinalUserBuyEpochId /* ex1 */ || (currentEpoch == originalFinalUserBuyEpochId && isInMiddleOfCurrentEpoch /* ex2 */)) {
+            return;
+        }
+        DCAStructs.BuyEpochInfo storage finalBuyEpochToUpdate = buyEpochs[strategyId][originalFinalUserBuyEpochId+1];
+        if (isInMiddleOfCurrentEpoch) { //ex3
+            DCAStructs.BuyEpochInfo storage nextBuyEpochToUpdate = buyEpochs[strategyId][currentEpoch+1];
+            nextBuyEpochToUpdate.subtractCliff += userInfo.perBuyAmount;
+        } else { //ex4
+            DCAStructs.BuyEpochInfo storage unstartedCurrentBuyEpochToUpdate = buyEpochs[strategyId][currentEpoch];
+            unstartedCurrentBuyEpochToUpdate.subtractCliff += userInfo.perBuyAmount;
+        }
+        finalBuyEpochToUpdate.subtractCliff -= userInfo.perBuyAmount;  
+    }
+
+    function updateCliffsFromAddStrategy(uint256 strategyId, uint256 amountPerBuy) internal {
+        DCAStructs.DCAStrategy storage strategy = strategies[strategyId];
+        uint256 currentEpoch = getCurrentEpoch(strategy);
+        bool isInMiddleOfCurrentEpoch = isInMiddleOfEpoch(strategy);
+        if (isInMiddleOfCurrentEpoch) {
+            DCAStructs.BuyEpochInfo storage nextBuyEpochToUpdate = buyEpochs[strategyId][currentEpoch+1];
+            nextBuyEpochToUpdate.addCliff += amountPerBuy;
+        } else {            
+            DCAStructs.BuyEpochInfo storage unstartedCurrentBuyEpochToUpdate = buyEpochs[strategyId][currentEpoch];
+            unstartedCurrentBuyEpochToUpdate.addCliff += amountPerBuy;
+        }
     }
 
     /*
@@ -98,16 +202,26 @@ contract Counter {
         require(msg.sender == withdrawer, "can't withdraw for someone else!");
         require(strategyId < strategyCounter, "invalid strategyId");
         DCAStructs.DCAStrategy storage strategy = strategies[strategyId];
-        DCAStructs.UserBuyInfo storage userInfo = userBuyInfos[msg.sender][strategyId];
+        DCAStructs.UserBuyInfo storage userInfo = userBuyInfos[withdrawer][strategyId];
+        (uint256 amountOwed, uint256 amountSpent) = calculatePurchasesOwedAndBalanceSpent(strategyId, withdrawer);
+        userInfo.buyBalance -= amountSpent;
+        updateCliffsFromWithdraw(strategyId, withdrawer);
+        if (isInMiddleOfEpoch(strategy) && userInfo.buyBalance > 0) { // IN TRANSITORY EPOCH
+            userInfo.lastBuyAmountForTransitoryEpoch = userInfo.perBuyAmount;
+        } else {
+            userInfo.lastBuyAmountForTransitoryEpoch = 0;
+        }
+
+        // SEND AMOUNT OWED
 
     }
 
-    function userUpdateStrategy(uint256 strategyId, uint256 buyAmount, uint256 balanceToDeposit, uint256 epochsToBuy) public payable {
+    function userUpdateStrategy(uint256 strategyId, uint256 newBuyAmount, uint256 balanceToDeposit, uint256 epochsToBuy) public payable {
         require(msg.value == balanceToDeposit, "incorrect balance deposit");
-        require(buyAmount >= 10000000000000, "buyAmountTooLow");
+        require(newBuyAmount >= 10000000000000, "newBuyAmountTooLow");
         require(strategyId < strategyCounter, "invalid strategyId");
         DCAStructs.DCAStrategy storage strategy = strategies[strategyId];
-        require(!strategy.disabled, "strategy is disabled");
+        require(!strategy.disabled && !strategy.depositsDisabled, "strategy is disabled");
         require(epochsToBuy >= 1, "must buy at least 1 full epoch");
 
         DCAStructs.UserBuyInfo storage userInfo = userBuyInfos[msg.sender][strategyId];
@@ -116,17 +230,17 @@ contract Counter {
         }
         uint256 currentEpoch = getCurrentEpoch(strategy);
         uint256 balanceRequiredForTransitoryEpoch = userInfo.lastBuyAmountForTransitoryEpoch * strategy.buysPerEpoch;
-        uint256 userBuysPerEpoch = buyAmount * strategy.buysPerEpoch;
+        uint256 userBuysPerEpoch = newBuyAmount * strategy.buysPerEpoch;
         uint256 newUserBalance = userInfo.buyBalance + balanceToDeposit;
         require(newUserBalance  == (userBuysPerEpoch * epochsToBuy) + balanceRequiredForTransitoryEpoch, "existing balance + deposit does not equal target");
         // don't want to have to deal with remainders so only allow exact deposits
         require((newUserBalance - balanceRequiredForTransitoryEpoch) % userBuysPerEpoch == 0, "not exact epoch deposit");
         userInfo.buyBalance = newUserBalance;
-        userInfo.perBuyAmount = buyAmount;
+        userInfo.perBuyAmount = newBuyAmount;
         userInfo.enteringEpochId = currentEpoch + 1;
 
         DCAStructs.BuyEpochInfo storage enteringEpochInfo = buyEpochs[strategyId][currentEpoch + 1];
-        if (buyAmount > userInfo.lastBuyAmountForTransitoryEpoch) {
+        if (newBuyAmount > userInfo.lastBuyAmountForTransitoryEpoch) {
 
         }
     }
