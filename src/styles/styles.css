@@ -5,6 +5,7 @@
   font-style: normal;
 }
 
+/* Global Resets */
 body,
 html,
 div,
@@ -33,6 +34,7 @@ button,
   color: #000;
 }
 
+/* Responsiveness */
 @media (max-width: 768px) {
   body {
     font-size: 16px;
@@ -45,6 +47,7 @@ button,
   }
 }
 
+/* Button Styles */
 .connect-btn {
   background-color: #ffffff;
   color: #333;
@@ -57,7 +60,7 @@ button,
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, transform 0.2s;
 }
 
 .connect-btn:hover {
@@ -65,7 +68,7 @@ button,
 }
 
 .connect-btn:active {
-  transform: translateY(0);
+  transform: scale(0.95);
 }
 
 .connect-btn img {
@@ -74,6 +77,7 @@ button,
   vertical-align: middle;
 }
 
+/* Modal Styles */
 .modal {
   width: 90%;
   max-width: 400px;
@@ -172,11 +176,12 @@ button,
   margin-left: 5px;
 }
 
+/* Header Styles */
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 2rem;
+  padding: 2rem 2rem;
   background-color: #000;
   border-bottom: 1px solid white;
   position: sticky;
@@ -202,4 +207,107 @@ button,
 
 .logo-section span {
   font-size: 24px;
+  color: #fff;
+}
+
+/* Other Enhancements */
+/* This ensures the theme consistency */
+* {
+  box-sizing: border-box;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+input,
+select,
+textarea {
+  font-family: "VT323", sans-serif;
+}
+
+/* Tabs */
+.tabs {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: #000;
+}
+
+.tab-headers {
+  display: flex;
+  border-bottom: 1px solid #fff;
+}
+
+.tab-header {
+  flex: 1;
+  text-align: center;
+  padding: 12px;
+  cursor: pointer;
+  border: none;
+  font-size: 24px;
+  transition: background-color 0.3s, color 0.3s;
+  background-color: #000;
+  color: #fff;
+}
+
+.tab-header.active {
+  background-color: #fff;
+  color: #000;
+}
+
+/* White thin line underneath tabs */
+.tab-headers::after {
+  content: "";
+  display: block;
+  height: 2px;
+  background-color: #fff;
+  width: 100%;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+}
+
+/* Table styles */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead {
+  background-color: #000;
+}
+
+th {
+  font-size: 24px;
+  text-align: left;
+  padding: 12px;
+  border-bottom: 2px solid #fff;
+}
+
+tbody tr {
+  background-color: #000;
+}
+
+td {
+  padding: 12px;
+  border-bottom: 1px solid #fff;
+}
+
+table tbody tr {
+  border: none !important;
+}
+
+table tbody td {
+  border: none !important;
+}
+
+table tbody tr:hover {
+  cursor: pointer;
+  background-color: #333;
+}
+
+table tbody tr:not(:last-child) {
+  margin-bottom: 5px;
 }

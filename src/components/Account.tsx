@@ -1,6 +1,12 @@
 "use client";
 
-import { useAccount, useNetwork, useSwitchNetwork, useDisconnect } from "wagmi";
+import {
+  useAccount,
+  useNetwork,
+  useSwitchNetwork,
+  useDisconnect,
+  useBalance,
+} from "wagmi";
 import { useState, useRef, useEffect } from "react";
 
 export function Account() {
@@ -10,6 +16,10 @@ export function Account() {
     useSwitchNetwork();
   const { disconnect } = useDisconnect();
 
+  const { data } = useBalance({
+    address: address,
+  });
+  console.log(data);
   const [showNetworkModal, setShowNetworkModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
 
