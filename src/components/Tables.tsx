@@ -1,10 +1,31 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 const Tables = () => {
   const [activeTab, setActiveTab] = useState("strategies");
   const [isModalOpen, setModalOpen] = useState(false);
 
+  const modalRef = useRef<HTMLDivElement | null>(null); // Reference for the modal
+
+  useEffect(() => {
+    function handleClickOutside(event: { target: any }) {
+      if (
+        isModalOpen &&
+        modalRef.current &&
+        !modalRef.current.contains(event.target)
+      ) {
+        setModalOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isModalOpen]);
+
+  //Dummy data
   const strategiesData = [
     {
       name: "WBTC",
@@ -105,7 +126,7 @@ const Tables = () => {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="modal">
+        <div className="modal" ref={modalRef}>
           <div className="modal-header">
             <h2>Deposit</h2>
             <button onClick={() => setModalOpen(false)} className="close-btn">
