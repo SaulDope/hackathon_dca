@@ -25,7 +25,8 @@ library DCAStructs {
         uint256 blocksPerPeriod;
         uint256 buysPerEpoch;
         uint256 buyCounter;
-        uint256 buyBalance;
+        uint256 paymentBalance;
+        uint256 buyingBalance;
         bool disabled;
         bool depositsDisabled;
         uint256 lastBuyBlock;
@@ -38,6 +39,7 @@ contract Counter {
     mapping(uint256 => DCAStructs.DCAStrategy) public strategies;
     mapping(address => mapping(uint256 => DCAStructs.UserBuyInfo)) public userBuyInfos;
     mapping(uint256 => mapping(uint256 => DCAStructs.BuyEpochInfo)) buyEpochs;
+    mapping(address => bool) allowedTriggerStrategyAddresses;
     
     event NewStrategy(uint256 strategyId, DCAStructs.DCAStrategy strategy);
 
@@ -47,6 +49,38 @@ contract Counter {
         for (uint256 i = 0; i < numStrategies; i++) {
             strategyData[i] = strategies[firstStrategyId + i];
         }
+    }
+
+    function updateAllowedTriggerStrategyAddress(address triggererAddress, bool updateTo) public {
+        require(msg.sender == owner, "only owner");
+        allowedTriggerStrategyAddresses[triggererAddress] = updateTo;
+    }
+
+    // TODO: call uniswap etc
+    function swap(address paymentToken, address buyingToken, uint256 amountToPay) internal returns (uint256 amountBought, uint256 feePaid) {
+        return (amountBought, feePaid);
+    }
+
+    function triggerStrategyBuy(uint256 strategyId) public {
+        require(allowedTriggerStrategyAddresses[msg.sender], "address not allowed to trigger strategies");
+        require(strategyCounter > strategyId, "strategy does not exist");
+        DCAStructs.DCAStrategy storage strategy = strategies[strategyId];
+        require(!strategy.disabled, "strategy disabled");
+        require(block.number >= strategy.lastBuyBlock + strategy.blocksPerPeriod, "buy too early");
+        uint256 currentEpochId = getCurrentEpoch(strategy);
+        DCAStructs.BuyEpochInfo memory currentEpochBuyInfo = buyEpochs[strategyId][currentEpochId];
+        if (strategy.buyCounter % strategy.buysPerEpoch == 0) {
+            strategy.perPeriodBuy += currentEpochBuyInfo.addCliff;
+            strategy.perPeriodBuy -= currentEpochBuyInfo.subtractCliff;
+        }
+        (uint256 amountBought, uint256 feePaid) = swap(strategy.paymentToken, strategy.buyingToken, strategy.perPeriodBuy);
+        currentEpochBuyInfo.amountBought += amountBought;
+        currentEpochBuyInfo.amountPaid += strategy.perPeriodBuy;
+        currentEpochBuyInfo.keeperFeePaid += feePaid;
+        strategy.buyCounter += 1;
+        strategy.lastBuyBlock = block.number;
+        strategy.paymentBalance -= strategy.perPeriodBuy;
+        strategy.buyingBalance += amountBought;
     }
 
     function createNewStrategy(address paymentToken, address buyingToken, uint256 blocksPerPeriod, uint256 buysPerEpoch) public {
@@ -59,7 +93,8 @@ contract Counter {
             blocksPerPeriod: blocksPerPeriod,
             buysPerEpoch: buysPerEpoch,
             buyCounter: 0,
-            buyBalance: 0,
+            buyingBalance: 0,
+            paymentBalance: 0,
             disabled: false,
             depositsDisabled: false,
             lastBuyBlock: block.number
