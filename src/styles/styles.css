@@ -80,6 +80,23 @@ a,
   margin-bottom: 1rem;
 }
 
+.homepage h1 {
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+}
+
+.homepage h2 {
+  font-size: 2rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+}
+
+.homepage p {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+}
+
 /* Button Styles */
 .connect-btn {
   background-color: #ffffff;
@@ -136,7 +153,7 @@ a,
 }
 
 .modal-header h2 {
-  font-size: 18px;
+  font-size: 20px;
   display: flex;
   align-items: center;
 }
@@ -157,6 +174,10 @@ a,
 .modal-content p {
   color: #fff;
   margin-bottom: 20px;
+}
+
+.modal-content h4 {
+  font-size: 18px;
 }
 
 .wallet-option {

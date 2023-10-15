@@ -22,9 +22,17 @@ export function Account() {
   console.log(data);
   const [showNetworkModal, setShowNetworkModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   const networkModalRef = useRef<HTMLDivElement | null>(null);
   const accountModalRef = useRef<HTMLDivElement | null>(null);
+  const copyToClipboard = () => {
+    if (address) {
+      navigator.clipboard.writeText(address);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000); // Reset after 2 seconds sir
+    }
+  };
 
   function shortenAddress(addr: string) {
     if (addr.length <= 8) {
@@ -151,6 +159,19 @@ export function Account() {
             </button>
           </div>
           <div className="modal-content">
+            <p>
+              {" "}
+              BALANCE:{" "}
+              {data?.formatted
+                ? `${parseFloat(data?.formatted).toFixed(4)} ${data?.symbol}`
+                : "Loading..."}
+            </p>
+            <div className="wallet-option" onClick={copyToClipboard}>
+              <img src="/copy.png" alt="Copy Address" />
+              <span>
+                {isCopied ? "Copied!" : address ? address : "No Address"}
+              </span>
+            </div>
             <div
               className="wallet-option"
               onClick={(e) => {
