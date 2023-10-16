@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.20;
+
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 library DCAStructs {
 
@@ -19,8 +21,8 @@ library DCAStructs {
     }
 
     struct DCAStrategy {
-        address paymentToken;
-        address buyingToken;
+        ERC20 paymentToken;
+        ERC20 buyingToken;
         uint256 perPeriodBuy;
         uint256 blocksPerPeriod;
         uint256 buysPerEpoch;
@@ -57,7 +59,7 @@ contract DeDCA {
     }
 
     // TODO: call uniswap etc
-    function swap(address paymentToken, address buyingToken, uint256 amountToPay) internal returns (uint256 amountBought, uint256 feePaid) {
+    function swap(ERC20 paymentToken, ERC20 buyingToken, uint256 amountToPay) internal returns (uint256 amountBought, uint256 feePaid) {
         return (amountBought, feePaid);
     }
 
@@ -83,7 +85,7 @@ contract DeDCA {
         strategy.buyingBalance += amountBought;
     }
 
-    function createNewStrategy(address paymentToken, address buyingToken, uint256 blocksPerPeriod, uint256 buysPerEpoch) public {
+    function createNewStrategy(ERC20 paymentToken, ERC20 buyingToken, uint256 blocksPerPeriod, uint256 buysPerEpoch) public {
         require(msg.sender == owner, "only owner");
         require(buysPerEpoch >= 1, "invalid epoch length");
         strategies[strategyCounter] = DCAStructs.DCAStrategy({
