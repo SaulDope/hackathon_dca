@@ -32,12 +32,12 @@ body {
 h1,
 h2,
 h3 {
-  font-weight: bold; /* Bold headings for better visual differentiation */
-  margin-bottom: 1rem; /* Spacing below headings */
+  font-weight: bold;
+  margin-bottom: 1rem;
 }
 
 p {
-  margin-bottom: 1rem; /* Spacing below paragraphs */
+  margin-bottom: 1rem;
 }
 
 button,
@@ -63,20 +63,20 @@ button,
 /* Accent Colors */
 a,
 .highlight {
-  color: #e74c3c; /* Example accent color */
+  color: #e74c3c;
 }
 
 .icon {
-  margin-right: 0.5rem; /* Space after icons */
+  margin-right: 0.5rem;
 }
 
 /* Content Cards/Boxes */
 .homepage {
-  background-color: rgba(255, 255, 255, 0.05); /* Slightly visible boxes */
+  background-color: rgba(255, 255, 255, 0.05);
   border: 1px solid #444;
   padding: 3rem;
   /* border-radius: 10px; */
-  box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2); /* Box shadow for depth */
+  box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
   margin-bottom: 1rem;
 }
 
@@ -311,18 +311,6 @@ textarea {
   color: #000;
 }
 
-/* White thin line underneath tabs */
-.tab-headers::after {
-  content: "";
-  display: block;
-  height: 2px;
-  background-color: #fff;
-  width: 100%;
-  position: absolute;
-  bottom: 0;
-  left: 0;
-}
-
 /* Table styles */
 table {
   width: 100%;
@@ -342,18 +330,13 @@ th {
 
 tbody tr {
   background-color: #000;
+  margin-bottom: 5px;
 }
 
 td {
   padding: 12px;
   border-bottom: 1px solid #fff;
-}
-
-table tbody tr {
-  border: none !important;
-}
-
-table tbody td {
+  font-size: 20px;
   border: none !important;
 }
 
@@ -362,6 +345,6 @@ table tbody tr:hover {
   background-color: #333;
 }
 
-table tbody tr:not(:last-child) {
-  margin-bottom: 5px;
+table tbody tr:last-child {
+  border-bottom: 2px solid #fff;
 }
