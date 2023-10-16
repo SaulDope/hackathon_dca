@@ -33,7 +33,7 @@ library DCAStructs {
     }
 }
 
-contract Counter {
+contract DeDCA {
     uint256 public strategyCounter;
     address public owner;
     mapping(uint256 => DCAStructs.DCAStrategy) public strategies;

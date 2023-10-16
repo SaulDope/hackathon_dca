@@ -1,15 +1,15 @@
 import {
-  useNetwork,
-  useChainId,
   useContractRead,
   UseContractReadConfig,
   useContractWrite,
-  Address,
   UseContractWriteConfig,
   usePrepareContractWrite,
   UsePrepareContractWriteConfig,
   useContractEvent,
   UseContractEventConfig,
+  useNetwork,
+  useChainId,
+  Address,
 } from 'wagmi'
 import {
   ReadContractResult,
@@ -18,35 +18,66 @@ import {
 } from 'wagmi/actions'
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// CommonBase
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-export const commonBaseABI = [] as const
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Counter
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/**
- * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
- * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
- * -
- */
 export const counterABI = [
   {
     type: 'event',
     anonymous: false,
     inputs: [
-      { name: 'from', internalType: 'address', type: 'address', indexed: true },
-      { name: 'to', internalType: 'address', type: 'address', indexed: true },
       {
-        name: 'value',
+        name: 'strategyId',
         internalType: 'uint256',
         type: 'uint256',
         indexed: false,
       },
+      {
+        name: 'strategy',
+        internalType: 'struct DCAStructs.DCAStrategy',
+        type: 'tuple',
+        components: [
+          { name: 'paymentToken', internalType: 'address', type: 'address' },
+          { name: 'buyingToken', internalType: 'address', type: 'address' },
+          { name: 'perPeriodBuy', internalType: 'uint256', type: 'uint256' },
+          { name: 'blocksPerPeriod', internalType: 'uint256', type: 'uint256' },
+          { name: 'buysPerEpoch', internalType: 'uint256', type: 'uint256' },
+          { name: 'buyCounter', internalType: 'uint256', type: 'uint256' },
+          { name: 'paymentBalance', internalType: 'uint256', type: 'uint256' },
+          { name: 'buyingBalance', internalType: 'uint256', type: 'uint256' },
+          { name: 'disabled', internalType: 'bool', type: 'bool' },
+          { name: 'depositsDisabled', internalType: 'bool', type: 'bool' },
+          { name: 'lastBuyBlock', internalType: 'uint256', type: 'uint256' },
+        ],
+        indexed: false,
+      },
     ],
-    name: 'Transfer',
+    name: 'NewStrategy',
+  },
+  {
+    stateMutability: 'view',
+    type: 'function',
+    inputs: [
+      { name: 'strategyId', internalType: 'uint256', type: 'uint256' },
+      { name: 'withdrawer', internalType: 'address', type: 'address' },
+    ],
+    name: 'calculatePurchasesOwedAndBalanceSpent',
+    outputs: [
+      { name: 'amountOwed', internalType: 'uint256', type: 'uint256' },
+      { name: 'amountSpent', internalType: 'uint256', type: 'uint256' },
+    ],
+  },
+  {
+    stateMutability: 'nonpayable',
+    type: 'function',
+    inputs: [
+      { name: 'paymentToken', internalType: 'address', type: 'address' },
+      { name: 'buyingToken', internalType: 'address', type: 'address' },
+      { name: 'blocksPerPeriod', internalType: 'uint256', type: 'uint256' },
+      { name: 'buysPerEpoch', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'createNewStrategy',
+    outputs: [],
   },
   {
     stateMutability: 'pure',
@@ -62,25 +93,12 @@ export const counterABI = [
           { name: 'perPeriodBuy', internalType: 'uint256', type: 'uint256' },
           { name: 'blocksPerPeriod', internalType: 'uint256', type: 'uint256' },
           { name: 'buysPerEpoch', internalType: 'uint256', type: 'uint256' },
-          {
-            name: 'buyEpochs',
-            internalType: 'struct DCAStructs.BuyEpochInfo[]',
-            type: 'tuple[]',
-            components: [
-              {
-                name: 'amountBought',
-                internalType: 'uint256',
-                type: 'uint256',
-              },
-              { name: 'amountPaid', internalType: 'uint256', type: 'uint256' },
-              {
-                name: 'keeperFeePaid',
-                internalType: 'uint256',
-                type: 'uint256',
-              },
-            ],
-          },
           { name: 'buyCounter', internalType: 'uint256', type: 'uint256' },
+          { name: 'paymentBalance', internalType: 'uint256', type: 'uint256' },
+          { name: 'buyingBalance', internalType: 'uint256', type: 'uint256' },
+          { name: 'disabled', internalType: 'bool', type: 'bool' },
+          { name: 'depositsDisabled', internalType: 'bool', type: 'bool' },
+          { name: 'lastBuyBlock', internalType: 'uint256', type: 'uint256' },
         ],
       },
     ],
@@ -88,24 +106,410 @@ export const counterABI = [
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
   },
   {
-    stateMutability: 'nonpayable',
+    stateMutability: 'view',
     type: 'function',
-    inputs: [],
-    name: 'increment',
-    outputs: [],
+    inputs: [
+      { name: 'strategyId', internalType: 'uint256', type: 'uint256' },
+      { name: 'withdrawer', internalType: 'address', type: 'address' },
+    ],
+    name: 'getFinalBuyEpochIdForUser',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+  },
+  {
+    stateMutability: 'pure',
+    type: 'function',
+    inputs: [
+      {
+        name: 'strategy',
+        internalType: 'struct DCAStructs.DCAStrategy',
+        type: 'tuple',
+        components: [
+          { name: 'paymentToken', internalType: 'address', type: 'address' },
+          { name: 'buyingToken', internalType: 'address', type: 'address' },
+          { name: 'perPeriodBuy', internalType: 'uint256', type: 'uint256' },
+          { name: 'blocksPerPeriod', internalType: 'uint256', type: 'uint256' },
+          { name: 'buysPerEpoch', internalType: 'uint256', type: 'uint256' },
+          { name: 'buyCounter', internalType: 'uint256', type: 'uint256' },
+          { name: 'paymentBalance', internalType: 'uint256', type: 'uint256' },
+          { name: 'buyingBalance', internalType: 'uint256', type: 'uint256' },
+          { name: 'disabled', internalType: 'bool', type: 'bool' },
+          { name: 'depositsDisabled', internalType: 'bool', type: 'bool' },
+          { name: 'lastBuyBlock', internalType: 'uint256', type: 'uint256' },
+        ],
+      },
+    ],
+    name: 'getRemainingBuysInCurrentEpoch',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+  },
+  {
+    stateMutability: 'view',
+    type: 'function',
+    inputs: [
+      { name: 'firstStrategyId', internalType: 'uint256', type: 'uint256' },
+      { name: 'numStrategies', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'listStrategies',
+    outputs: [
+      {
+        name: 'strategyData',
+        internalType: 'struct DCAStructs.DCAStrategy[]',
+        type: 'tuple[]',
+        components: [
+          { name: 'paymentToken', internalType: 'address', type: 'address' },
+          { name: 'buyingToken', internalType: 'address', type: 'address' },
+          { name: 'perPeriodBuy', internalType: 'uint256', type: 'uint256' },
+          { name: 'blocksPerPeriod', internalType: 'uint256', type: 'uint256' },
+          { name: 'buysPerEpoch', internalType: 'uint256', type: 'uint256' },
+          { name: 'buyCounter', internalType: 'uint256', type: 'uint256' },
+          { name: 'paymentBalance', internalType: 'uint256', type: 'uint256' },
+          { name: 'buyingBalance', internalType: 'uint256', type: 'uint256' },
+          { name: 'disabled', internalType: 'bool', type: 'bool' },
+          { name: 'depositsDisabled', internalType: 'bool', type: 'bool' },
+          { name: 'lastBuyBlock', internalType: 'uint256', type: 'uint256' },
+        ],
+      },
+    ],
   },
   {
     stateMutability: 'view',
     type: 'function',
     inputs: [],
-    name: 'number',
+    name: 'owner',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+  },
+  {
+    stateMutability: 'view',
+    type: 'function',
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: 'strategies',
+    outputs: [
+      { name: 'paymentToken', internalType: 'address', type: 'address' },
+      { name: 'buyingToken', internalType: 'address', type: 'address' },
+      { name: 'perPeriodBuy', internalType: 'uint256', type: 'uint256' },
+      { name: 'blocksPerPeriod', internalType: 'uint256', type: 'uint256' },
+      { name: 'buysPerEpoch', internalType: 'uint256', type: 'uint256' },
+      { name: 'buyCounter', internalType: 'uint256', type: 'uint256' },
+      { name: 'paymentBalance', internalType: 'uint256', type: 'uint256' },
+      { name: 'buyingBalance', internalType: 'uint256', type: 'uint256' },
+      { name: 'disabled', internalType: 'bool', type: 'bool' },
+      { name: 'depositsDisabled', internalType: 'bool', type: 'bool' },
+      { name: 'lastBuyBlock', internalType: 'uint256', type: 'uint256' },
+    ],
+  },
+  {
+    stateMutability: 'view',
+    type: 'function',
+    inputs: [],
+    name: 'strategyCounter',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
   },
   {
     stateMutability: 'nonpayable',
     type: 'function',
-    inputs: [{ name: 'newNumber', internalType: 'uint256', type: 'uint256' }],
-    name: 'setNumber',
+    inputs: [{ name: 'strategyId', internalType: 'uint256', type: 'uint256' }],
+    name: 'triggerStrategyBuy',
+    outputs: [],
+  },
+  {
+    stateMutability: 'nonpayable',
+    type: 'function',
+    inputs: [
+      { name: 'triggererAddress', internalType: 'address', type: 'address' },
+      { name: 'updateTo', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'updateAllowedTriggerStrategyAddress',
+    outputs: [],
+  },
+  {
+    stateMutability: 'view',
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'userBuyInfos',
+    outputs: [
+      { name: 'perBuyAmount', internalType: 'uint256', type: 'uint256' },
+      { name: 'buyBalance', internalType: 'uint256', type: 'uint256' },
+      { name: 'enteringEpochId', internalType: 'uint256', type: 'uint256' },
+      {
+        name: 'lastBuyAmountForTransitoryEpoch',
+        internalType: 'uint256',
+        type: 'uint256',
+      },
+    ],
+  },
+  {
+    stateMutability: 'payable',
+    type: 'function',
+    inputs: [
+      { name: 'strategyId', internalType: 'uint256', type: 'uint256' },
+      { name: 'newBuyAmount', internalType: 'uint256', type: 'uint256' },
+      { name: 'balanceToDeposit', internalType: 'uint256', type: 'uint256' },
+      { name: 'epochsToBuy', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'userUpdateStrategy',
+    outputs: [],
+  },
+  {
+    stateMutability: 'nonpayable',
+    type: 'function',
+    inputs: [
+      { name: 'strategyId', internalType: 'uint256', type: 'uint256' },
+      { name: 'withdrawer', internalType: 'address', type: 'address' },
+    ],
+    name: 'withdraw',
+    outputs: [],
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// DeDCA
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export const deDcaABI = [
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'strategyId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'strategy',
+        internalType: 'struct DCAStructs.DCAStrategy',
+        type: 'tuple',
+        components: [
+          { name: 'paymentToken', internalType: 'address', type: 'address' },
+          { name: 'buyingToken', internalType: 'address', type: 'address' },
+          { name: 'perPeriodBuy', internalType: 'uint256', type: 'uint256' },
+          { name: 'blocksPerPeriod', internalType: 'uint256', type: 'uint256' },
+          { name: 'buysPerEpoch', internalType: 'uint256', type: 'uint256' },
+          { name: 'buyCounter', internalType: 'uint256', type: 'uint256' },
+          { name: 'paymentBalance', internalType: 'uint256', type: 'uint256' },
+          { name: 'buyingBalance', internalType: 'uint256', type: 'uint256' },
+          { name: 'disabled', internalType: 'bool', type: 'bool' },
+          { name: 'depositsDisabled', internalType: 'bool', type: 'bool' },
+          { name: 'lastBuyBlock', internalType: 'uint256', type: 'uint256' },
+        ],
+        indexed: false,
+      },
+    ],
+    name: 'NewStrategy',
+  },
+  {
+    stateMutability: 'view',
+    type: 'function',
+    inputs: [
+      { name: 'strategyId', internalType: 'uint256', type: 'uint256' },
+      { name: 'withdrawer', internalType: 'address', type: 'address' },
+    ],
+    name: 'calculatePurchasesOwedAndBalanceSpent',
+    outputs: [
+      { name: 'amountOwed', internalType: 'uint256', type: 'uint256' },
+      { name: 'amountSpent', internalType: 'uint256', type: 'uint256' },
+    ],
+  },
+  {
+    stateMutability: 'nonpayable',
+    type: 'function',
+    inputs: [
+      { name: 'paymentToken', internalType: 'address', type: 'address' },
+      { name: 'buyingToken', internalType: 'address', type: 'address' },
+      { name: 'blocksPerPeriod', internalType: 'uint256', type: 'uint256' },
+      { name: 'buysPerEpoch', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'createNewStrategy',
+    outputs: [],
+  },
+  {
+    stateMutability: 'pure',
+    type: 'function',
+    inputs: [
+      {
+        name: 'strategy',
+        internalType: 'struct DCAStructs.DCAStrategy',
+        type: 'tuple',
+        components: [
+          { name: 'paymentToken', internalType: 'address', type: 'address' },
+          { name: 'buyingToken', internalType: 'address', type: 'address' },
+          { name: 'perPeriodBuy', internalType: 'uint256', type: 'uint256' },
+          { name: 'blocksPerPeriod', internalType: 'uint256', type: 'uint256' },
+          { name: 'buysPerEpoch', internalType: 'uint256', type: 'uint256' },
+          { name: 'buyCounter', internalType: 'uint256', type: 'uint256' },
+          { name: 'paymentBalance', internalType: 'uint256', type: 'uint256' },
+          { name: 'buyingBalance', internalType: 'uint256', type: 'uint256' },
+          { name: 'disabled', internalType: 'bool', type: 'bool' },
+          { name: 'depositsDisabled', internalType: 'bool', type: 'bool' },
+          { name: 'lastBuyBlock', internalType: 'uint256', type: 'uint256' },
+        ],
+      },
+    ],
+    name: 'getCurrentEpoch',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+  },
+  {
+    stateMutability: 'view',
+    type: 'function',
+    inputs: [
+      { name: 'strategyId', internalType: 'uint256', type: 'uint256' },
+      { name: 'withdrawer', internalType: 'address', type: 'address' },
+    ],
+    name: 'getFinalBuyEpochIdForUser',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+  },
+  {
+    stateMutability: 'pure',
+    type: 'function',
+    inputs: [
+      {
+        name: 'strategy',
+        internalType: 'struct DCAStructs.DCAStrategy',
+        type: 'tuple',
+        components: [
+          { name: 'paymentToken', internalType: 'address', type: 'address' },
+          { name: 'buyingToken', internalType: 'address', type: 'address' },
+          { name: 'perPeriodBuy', internalType: 'uint256', type: 'uint256' },
+          { name: 'blocksPerPeriod', internalType: 'uint256', type: 'uint256' },
+          { name: 'buysPerEpoch', internalType: 'uint256', type: 'uint256' },
+          { name: 'buyCounter', internalType: 'uint256', type: 'uint256' },
+          { name: 'paymentBalance', internalType: 'uint256', type: 'uint256' },
+          { name: 'buyingBalance', internalType: 'uint256', type: 'uint256' },
+          { name: 'disabled', internalType: 'bool', type: 'bool' },
+          { name: 'depositsDisabled', internalType: 'bool', type: 'bool' },
+          { name: 'lastBuyBlock', internalType: 'uint256', type: 'uint256' },
+        ],
+      },
+    ],
+    name: 'getRemainingBuysInCurrentEpoch',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+  },
+  {
+    stateMutability: 'view',
+    type: 'function',
+    inputs: [
+      { name: 'firstStrategyId', internalType: 'uint256', type: 'uint256' },
+      { name: 'numStrategies', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'listStrategies',
+    outputs: [
+      {
+        name: 'strategyData',
+        internalType: 'struct DCAStructs.DCAStrategy[]',
+        type: 'tuple[]',
+        components: [
+          { name: 'paymentToken', internalType: 'address', type: 'address' },
+          { name: 'buyingToken', internalType: 'address', type: 'address' },
+          { name: 'perPeriodBuy', internalType: 'uint256', type: 'uint256' },
+          { name: 'blocksPerPeriod', internalType: 'uint256', type: 'uint256' },
+          { name: 'buysPerEpoch', internalType: 'uint256', type: 'uint256' },
+          { name: 'buyCounter', internalType: 'uint256', type: 'uint256' },
+          { name: 'paymentBalance', internalType: 'uint256', type: 'uint256' },
+          { name: 'buyingBalance', internalType: 'uint256', type: 'uint256' },
+          { name: 'disabled', internalType: 'bool', type: 'bool' },
+          { name: 'depositsDisabled', internalType: 'bool', type: 'bool' },
+          { name: 'lastBuyBlock', internalType: 'uint256', type: 'uint256' },
+        ],
+      },
+    ],
+  },
+  {
+    stateMutability: 'view',
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+  },
+  {
+    stateMutability: 'view',
+    type: 'function',
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: 'strategies',
+    outputs: [
+      { name: 'paymentToken', internalType: 'address', type: 'address' },
+      { name: 'buyingToken', internalType: 'address', type: 'address' },
+      { name: 'perPeriodBuy', internalType: 'uint256', type: 'uint256' },
+      { name: 'blocksPerPeriod', internalType: 'uint256', type: 'uint256' },
+      { name: 'buysPerEpoch', internalType: 'uint256', type: 'uint256' },
+      { name: 'buyCounter', internalType: 'uint256', type: 'uint256' },
+      { name: 'paymentBalance', internalType: 'uint256', type: 'uint256' },
+      { name: 'buyingBalance', internalType: 'uint256', type: 'uint256' },
+      { name: 'disabled', internalType: 'bool', type: 'bool' },
+      { name: 'depositsDisabled', internalType: 'bool', type: 'bool' },
+      { name: 'lastBuyBlock', internalType: 'uint256', type: 'uint256' },
+    ],
+  },
+  {
+    stateMutability: 'view',
+    type: 'function',
+    inputs: [],
+    name: 'strategyCounter',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+  },
+  {
+    stateMutability: 'nonpayable',
+    type: 'function',
+    inputs: [{ name: 'strategyId', internalType: 'uint256', type: 'uint256' }],
+    name: 'triggerStrategyBuy',
+    outputs: [],
+  },
+  {
+    stateMutability: 'nonpayable',
+    type: 'function',
+    inputs: [
+      { name: 'triggererAddress', internalType: 'address', type: 'address' },
+      { name: 'updateTo', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'updateAllowedTriggerStrategyAddress',
+    outputs: [],
+  },
+  {
+    stateMutability: 'view',
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'userBuyInfos',
+    outputs: [
+      { name: 'perBuyAmount', internalType: 'uint256', type: 'uint256' },
+      { name: 'buyBalance', internalType: 'uint256', type: 'uint256' },
+      { name: 'enteringEpochId', internalType: 'uint256', type: 'uint256' },
+      {
+        name: 'lastBuyAmountForTransitoryEpoch',
+        internalType: 'uint256',
+        type: 'uint256',
+      },
+    ],
+  },
+  {
+    stateMutability: 'payable',
+    type: 'function',
+    inputs: [
+      { name: 'strategyId', internalType: 'uint256', type: 'uint256' },
+      { name: 'newBuyAmount', internalType: 'uint256', type: 'uint256' },
+      { name: 'balanceToDeposit', internalType: 'uint256', type: 'uint256' },
+      { name: 'epochsToBuy', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'userUpdateStrategy',
+    outputs: [],
+  },
+  {
+    stateMutability: 'nonpayable',
+    type: 'function',
+    inputs: [
+      { name: 'strategyId', internalType: 'uint256', type: 'uint256' },
+      { name: 'withdrawer', internalType: 'address', type: 'address' },
+    ],
+    name: 'withdraw',
     outputs: [],
   },
 ] as const
@@ -115,7 +519,7 @@ export const counterABI = [
  * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
  * -
  */
-export const counterAddress = {
+export const deDcaAddress = {
   1: '0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac',
   5: '0x78991BB1D194C1235fe285240af8489CFA552151',
   31337: '0xbe18A1B61ceaF59aEB6A9bC81AB4FB87D56Ba167',
@@ -126,34 +530,7 @@ export const counterAddress = {
  * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
  * -
  */
-export const counterConfig = {
-  address: counterAddress,
-  abi: counterABI,
-} as const
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// DCAStructs
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-export const dcaStructsABI = [] as const
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// DuelStructs
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-export const duelStructsABI = [] as const
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ScriptBase
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-export const scriptBaseABI = [] as const
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// StdChains
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-export const stdChainsABI = [] as const
+export const deDcaConfig = { address: deDcaAddress, abi: deDcaABI } as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Test
@@ -406,21 +783,11 @@ export const testABI = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// TestBase
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-export const testBaseABI = [] as const
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // React
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Wraps __{@link useContractRead}__ with `abi` set to __{@link counterABI}__.
- *
- * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
- * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
- * -
  */
 export function useCounterRead<
   TFunctionName extends string,
@@ -428,25 +795,36 @@ export function useCounterRead<
 >(
   config: Omit<
     UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>,
-    'abi' | 'address'
-  > & { chainId?: keyof typeof counterAddress } = {} as any,
+    'abi'
+  > = {} as any,
 ) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
   return useContractRead({
     abi: counterABI,
-    address: counterAddress[chainId as keyof typeof counterAddress],
+    ...config,
+  } as UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"calculatePurchasesOwedAndBalanceSpent"`.
+ */
+export function useCounterCalculatePurchasesOwedAndBalanceSpent<
+  TFunctionName extends 'calculatePurchasesOwedAndBalanceSpent',
+  TSelectData = ReadContractResult<typeof counterABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>,
+    'abi' | 'functionName'
+  > = {} as any,
+) {
+  return useContractRead({
+    abi: counterABI,
+    functionName: 'calculatePurchasesOwedAndBalanceSpent',
     ...config,
   } as UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>)
 }
 
 /**
  * Wraps __{@link useContractRead}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"getCurrentEpoch"`.
- *
- * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
- * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
- * -
  */
 export function useCounterGetCurrentEpoch<
   TFunctionName extends 'getCurrentEpoch',
@@ -454,273 +832,1156 @@ export function useCounterGetCurrentEpoch<
 >(
   config: Omit<
     UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof counterAddress } = {} as any,
+    'abi' | 'functionName'
+  > = {} as any,
 ) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
   return useContractRead({
     abi: counterABI,
-    address: counterAddress[chainId as keyof typeof counterAddress],
     functionName: 'getCurrentEpoch',
     ...config,
   } as UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>)
 }
 
 /**
- * Wraps __{@link useContractRead}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"number"`.
- *
- * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
- * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
- * -
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"getFinalBuyEpochIdForUser"`.
  */
-export function useCounterNumber<
-  TFunctionName extends 'number',
+export function useCounterGetFinalBuyEpochIdForUser<
+  TFunctionName extends 'getFinalBuyEpochIdForUser',
   TSelectData = ReadContractResult<typeof counterABI, TFunctionName>,
 >(
   config: Omit<
     UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof counterAddress } = {} as any,
+    'abi' | 'functionName'
+  > = {} as any,
 ) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
   return useContractRead({
     abi: counterABI,
-    address: counterAddress[chainId as keyof typeof counterAddress],
-    functionName: 'number',
+    functionName: 'getFinalBuyEpochIdForUser',
+    ...config,
+  } as UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"getRemainingBuysInCurrentEpoch"`.
+ */
+export function useCounterGetRemainingBuysInCurrentEpoch<
+  TFunctionName extends 'getRemainingBuysInCurrentEpoch',
+  TSelectData = ReadContractResult<typeof counterABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>,
+    'abi' | 'functionName'
+  > = {} as any,
+) {
+  return useContractRead({
+    abi: counterABI,
+    functionName: 'getRemainingBuysInCurrentEpoch',
+    ...config,
+  } as UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"listStrategies"`.
+ */
+export function useCounterListStrategies<
+  TFunctionName extends 'listStrategies',
+  TSelectData = ReadContractResult<typeof counterABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>,
+    'abi' | 'functionName'
+  > = {} as any,
+) {
+  return useContractRead({
+    abi: counterABI,
+    functionName: 'listStrategies',
+    ...config,
+  } as UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"owner"`.
+ */
+export function useCounterOwner<
+  TFunctionName extends 'owner',
+  TSelectData = ReadContractResult<typeof counterABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>,
+    'abi' | 'functionName'
+  > = {} as any,
+) {
+  return useContractRead({
+    abi: counterABI,
+    functionName: 'owner',
+    ...config,
+  } as UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"strategies"`.
+ */
+export function useCounterStrategies<
+  TFunctionName extends 'strategies',
+  TSelectData = ReadContractResult<typeof counterABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>,
+    'abi' | 'functionName'
+  > = {} as any,
+) {
+  return useContractRead({
+    abi: counterABI,
+    functionName: 'strategies',
+    ...config,
+  } as UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"strategyCounter"`.
+ */
+export function useCounterStrategyCounter<
+  TFunctionName extends 'strategyCounter',
+  TSelectData = ReadContractResult<typeof counterABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>,
+    'abi' | 'functionName'
+  > = {} as any,
+) {
+  return useContractRead({
+    abi: counterABI,
+    functionName: 'strategyCounter',
+    ...config,
+  } as UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"userBuyInfos"`.
+ */
+export function useCounterUserBuyInfos<
+  TFunctionName extends 'userBuyInfos',
+  TSelectData = ReadContractResult<typeof counterABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>,
+    'abi' | 'functionName'
+  > = {} as any,
+) {
+  return useContractRead({
+    abi: counterABI,
+    functionName: 'userBuyInfos',
     ...config,
   } as UseContractReadConfig<typeof counterABI, TFunctionName, TSelectData>)
 }
 
 /**
  * Wraps __{@link useContractWrite}__ with `abi` set to __{@link counterABI}__.
- *
- * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
- * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
- * -
  */
 export function useCounterWrite<
   TFunctionName extends string,
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof counterAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
         PrepareWriteContractResult<typeof counterABI, string>['request']['abi'],
         TFunctionName,
         TMode
-      > & { address?: Address; chainId?: TChainId }
+      >
     : UseContractWriteConfig<typeof counterABI, TFunctionName, TMode> & {
         abi?: never
-        address?: never
-        chainId?: TChainId
       } = {} as any,
 ) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
   return useContractWrite<typeof counterABI, TFunctionName, TMode>({
     abi: counterABI,
-    address: counterAddress[chainId as keyof typeof counterAddress],
     ...config,
   } as any)
 }
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"increment"`.
- *
- * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
- * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
- * -
+ * Wraps __{@link useContractWrite}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"createNewStrategy"`.
  */
-export function useCounterIncrement<
+export function useCounterCreateNewStrategy<
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof counterAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
         PrepareWriteContractResult<
           typeof counterABI,
-          'increment'
+          'createNewStrategy'
         >['request']['abi'],
-        'increment',
+        'createNewStrategy',
         TMode
-      > & { address?: Address; chainId?: TChainId; functionName?: 'increment' }
-    : UseContractWriteConfig<typeof counterABI, 'increment', TMode> & {
+      > & { functionName?: 'createNewStrategy' }
+    : UseContractWriteConfig<typeof counterABI, 'createNewStrategy', TMode> & {
         abi?: never
-        address?: never
-        chainId?: TChainId
-        functionName?: 'increment'
+        functionName?: 'createNewStrategy'
       } = {} as any,
 ) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractWrite<typeof counterABI, 'increment', TMode>({
+  return useContractWrite<typeof counterABI, 'createNewStrategy', TMode>({
     abi: counterABI,
-    address: counterAddress[chainId as keyof typeof counterAddress],
-    functionName: 'increment',
+    functionName: 'createNewStrategy',
     ...config,
   } as any)
 }
 
 /**
- * Wraps __{@link useContractWrite}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"setNumber"`.
- *
- * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
- * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
- * -
+ * Wraps __{@link useContractWrite}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"triggerStrategyBuy"`.
  */
-export function useCounterSetNumber<
+export function useCounterTriggerStrategyBuy<
   TMode extends WriteContractMode = undefined,
-  TChainId extends number = keyof typeof counterAddress,
 >(
   config: TMode extends 'prepared'
     ? UseContractWriteConfig<
         PrepareWriteContractResult<
           typeof counterABI,
-          'setNumber'
+          'triggerStrategyBuy'
         >['request']['abi'],
-        'setNumber',
+        'triggerStrategyBuy',
         TMode
-      > & { address?: Address; chainId?: TChainId; functionName?: 'setNumber' }
-    : UseContractWriteConfig<typeof counterABI, 'setNumber', TMode> & {
+      > & { functionName?: 'triggerStrategyBuy' }
+    : UseContractWriteConfig<typeof counterABI, 'triggerStrategyBuy', TMode> & {
         abi?: never
-        address?: never
-        chainId?: TChainId
-        functionName?: 'setNumber'
+        functionName?: 'triggerStrategyBuy'
       } = {} as any,
 ) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
-  return useContractWrite<typeof counterABI, 'setNumber', TMode>({
+  return useContractWrite<typeof counterABI, 'triggerStrategyBuy', TMode>({
     abi: counterABI,
-    address: counterAddress[chainId as keyof typeof counterAddress],
-    functionName: 'setNumber',
+    functionName: 'triggerStrategyBuy',
+    ...config,
+  } as any)
+}
+
+/**
+ * Wraps __{@link useContractWrite}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"updateAllowedTriggerStrategyAddress"`.
+ */
+export function useCounterUpdateAllowedTriggerStrategyAddress<
+  TMode extends WriteContractMode = undefined,
+>(
+  config: TMode extends 'prepared'
+    ? UseContractWriteConfig<
+        PrepareWriteContractResult<
+          typeof counterABI,
+          'updateAllowedTriggerStrategyAddress'
+        >['request']['abi'],
+        'updateAllowedTriggerStrategyAddress',
+        TMode
+      > & { functionName?: 'updateAllowedTriggerStrategyAddress' }
+    : UseContractWriteConfig<
+        typeof counterABI,
+        'updateAllowedTriggerStrategyAddress',
+        TMode
+      > & {
+        abi?: never
+        functionName?: 'updateAllowedTriggerStrategyAddress'
+      } = {} as any,
+) {
+  return useContractWrite<
+    typeof counterABI,
+    'updateAllowedTriggerStrategyAddress',
+    TMode
+  >({
+    abi: counterABI,
+    functionName: 'updateAllowedTriggerStrategyAddress',
+    ...config,
+  } as any)
+}
+
+/**
+ * Wraps __{@link useContractWrite}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"userUpdateStrategy"`.
+ */
+export function useCounterUserUpdateStrategy<
+  TMode extends WriteContractMode = undefined,
+>(
+  config: TMode extends 'prepared'
+    ? UseContractWriteConfig<
+        PrepareWriteContractResult<
+          typeof counterABI,
+          'userUpdateStrategy'
+        >['request']['abi'],
+        'userUpdateStrategy',
+        TMode
+      > & { functionName?: 'userUpdateStrategy' }
+    : UseContractWriteConfig<typeof counterABI, 'userUpdateStrategy', TMode> & {
+        abi?: never
+        functionName?: 'userUpdateStrategy'
+      } = {} as any,
+) {
+  return useContractWrite<typeof counterABI, 'userUpdateStrategy', TMode>({
+    abi: counterABI,
+    functionName: 'userUpdateStrategy',
+    ...config,
+  } as any)
+}
+
+/**
+ * Wraps __{@link useContractWrite}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"withdraw"`.
+ */
+export function useCounterWithdraw<TMode extends WriteContractMode = undefined>(
+  config: TMode extends 'prepared'
+    ? UseContractWriteConfig<
+        PrepareWriteContractResult<
+          typeof counterABI,
+          'withdraw'
+        >['request']['abi'],
+        'withdraw',
+        TMode
+      > & { functionName?: 'withdraw' }
+    : UseContractWriteConfig<typeof counterABI, 'withdraw', TMode> & {
+        abi?: never
+        functionName?: 'withdraw'
+      } = {} as any,
+) {
+  return useContractWrite<typeof counterABI, 'withdraw', TMode>({
+    abi: counterABI,
+    functionName: 'withdraw',
     ...config,
   } as any)
 }
 
 /**
  * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link counterABI}__.
- *
- * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
- * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
- * -
  */
 export function usePrepareCounterWrite<TFunctionName extends string>(
   config: Omit<
     UsePrepareContractWriteConfig<typeof counterABI, TFunctionName>,
-    'abi' | 'address'
-  > & { chainId?: keyof typeof counterAddress } = {} as any,
+    'abi'
+  > = {} as any,
 ) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
   return usePrepareContractWrite({
     abi: counterABI,
-    address: counterAddress[chainId as keyof typeof counterAddress],
     ...config,
   } as UsePrepareContractWriteConfig<typeof counterABI, TFunctionName>)
 }
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"increment"`.
- *
- * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
- * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
- * -
+ * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"createNewStrategy"`.
  */
-export function usePrepareCounterIncrement(
+export function usePrepareCounterCreateNewStrategy(
   config: Omit<
-    UsePrepareContractWriteConfig<typeof counterABI, 'increment'>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof counterAddress } = {} as any,
+    UsePrepareContractWriteConfig<typeof counterABI, 'createNewStrategy'>,
+    'abi' | 'functionName'
+  > = {} as any,
 ) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
   return usePrepareContractWrite({
     abi: counterABI,
-    address: counterAddress[chainId as keyof typeof counterAddress],
-    functionName: 'increment',
+    functionName: 'createNewStrategy',
     ...config,
-  } as UsePrepareContractWriteConfig<typeof counterABI, 'increment'>)
+  } as UsePrepareContractWriteConfig<typeof counterABI, 'createNewStrategy'>)
 }
 
 /**
- * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"setNumber"`.
- *
- * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
- * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
- * -
+ * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"triggerStrategyBuy"`.
  */
-export function usePrepareCounterSetNumber(
+export function usePrepareCounterTriggerStrategyBuy(
   config: Omit<
-    UsePrepareContractWriteConfig<typeof counterABI, 'setNumber'>,
-    'abi' | 'address' | 'functionName'
-  > & { chainId?: keyof typeof counterAddress } = {} as any,
+    UsePrepareContractWriteConfig<typeof counterABI, 'triggerStrategyBuy'>,
+    'abi' | 'functionName'
+  > = {} as any,
 ) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
   return usePrepareContractWrite({
     abi: counterABI,
-    address: counterAddress[chainId as keyof typeof counterAddress],
-    functionName: 'setNumber',
+    functionName: 'triggerStrategyBuy',
     ...config,
-  } as UsePrepareContractWriteConfig<typeof counterABI, 'setNumber'>)
+  } as UsePrepareContractWriteConfig<typeof counterABI, 'triggerStrategyBuy'>)
+}
+
+/**
+ * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"updateAllowedTriggerStrategyAddress"`.
+ */
+export function usePrepareCounterUpdateAllowedTriggerStrategyAddress(
+  config: Omit<
+    UsePrepareContractWriteConfig<
+      typeof counterABI,
+      'updateAllowedTriggerStrategyAddress'
+    >,
+    'abi' | 'functionName'
+  > = {} as any,
+) {
+  return usePrepareContractWrite({
+    abi: counterABI,
+    functionName: 'updateAllowedTriggerStrategyAddress',
+    ...config,
+  } as UsePrepareContractWriteConfig<
+    typeof counterABI,
+    'updateAllowedTriggerStrategyAddress'
+  >)
+}
+
+/**
+ * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"userUpdateStrategy"`.
+ */
+export function usePrepareCounterUserUpdateStrategy(
+  config: Omit<
+    UsePrepareContractWriteConfig<typeof counterABI, 'userUpdateStrategy'>,
+    'abi' | 'functionName'
+  > = {} as any,
+) {
+  return usePrepareContractWrite({
+    abi: counterABI,
+    functionName: 'userUpdateStrategy',
+    ...config,
+  } as UsePrepareContractWriteConfig<typeof counterABI, 'userUpdateStrategy'>)
+}
+
+/**
+ * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link counterABI}__ and `functionName` set to `"withdraw"`.
+ */
+export function usePrepareCounterWithdraw(
+  config: Omit<
+    UsePrepareContractWriteConfig<typeof counterABI, 'withdraw'>,
+    'abi' | 'functionName'
+  > = {} as any,
+) {
+  return usePrepareContractWrite({
+    abi: counterABI,
+    functionName: 'withdraw',
+    ...config,
+  } as UsePrepareContractWriteConfig<typeof counterABI, 'withdraw'>)
 }
 
 /**
  * Wraps __{@link useContractEvent}__ with `abi` set to __{@link counterABI}__.
- *
- * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
- * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
- * -
  */
 export function useCounterEvent<TEventName extends string>(
   config: Omit<
     UseContractEventConfig<typeof counterABI, TEventName>,
-    'abi' | 'address'
-  > & { chainId?: keyof typeof counterAddress } = {} as any,
+    'abi'
+  > = {} as any,
 ) {
-  const { chain } = useNetwork()
-  const defaultChainId = useChainId()
-  const chainId = config.chainId ?? chain?.id ?? defaultChainId
   return useContractEvent({
     abi: counterABI,
-    address: counterAddress[chainId as keyof typeof counterAddress],
     ...config,
   } as UseContractEventConfig<typeof counterABI, TEventName>)
 }
 
 /**
- * Wraps __{@link useContractEvent}__ with `abi` set to __{@link counterABI}__ and `eventName` set to `"Transfer"`.
+ * Wraps __{@link useContractEvent}__ with `abi` set to __{@link counterABI}__ and `eventName` set to `"NewStrategy"`.
+ */
+export function useCounterNewStrategyEvent(
+  config: Omit<
+    UseContractEventConfig<typeof counterABI, 'NewStrategy'>,
+    'abi' | 'eventName'
+  > = {} as any,
+) {
+  return useContractEvent({
+    abi: counterABI,
+    eventName: 'NewStrategy',
+    ...config,
+  } as UseContractEventConfig<typeof counterABI, 'NewStrategy'>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link deDcaABI}__.
  *
  * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
  * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
  * -
  */
-export function useCounterTransferEvent(
+export function useDeDcaRead<
+  TFunctionName extends string,
+  TSelectData = ReadContractResult<typeof deDcaABI, TFunctionName>,
+>(
   config: Omit<
-    UseContractEventConfig<typeof counterABI, 'Transfer'>,
-    'abi' | 'address' | 'eventName'
-  > & { chainId?: keyof typeof counterAddress } = {} as any,
+    UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>,
+    'abi' | 'address'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractRead({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    ...config,
+  } as UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"calculatePurchasesOwedAndBalanceSpent"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useDeDcaCalculatePurchasesOwedAndBalanceSpent<
+  TFunctionName extends 'calculatePurchasesOwedAndBalanceSpent',
+  TSelectData = ReadContractResult<typeof deDcaABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>,
+    'abi' | 'address' | 'functionName'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractRead({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'calculatePurchasesOwedAndBalanceSpent',
+    ...config,
+  } as UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"getCurrentEpoch"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useDeDcaGetCurrentEpoch<
+  TFunctionName extends 'getCurrentEpoch',
+  TSelectData = ReadContractResult<typeof deDcaABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>,
+    'abi' | 'address' | 'functionName'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractRead({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'getCurrentEpoch',
+    ...config,
+  } as UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"getFinalBuyEpochIdForUser"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useDeDcaGetFinalBuyEpochIdForUser<
+  TFunctionName extends 'getFinalBuyEpochIdForUser',
+  TSelectData = ReadContractResult<typeof deDcaABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>,
+    'abi' | 'address' | 'functionName'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractRead({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'getFinalBuyEpochIdForUser',
+    ...config,
+  } as UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"getRemainingBuysInCurrentEpoch"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useDeDcaGetRemainingBuysInCurrentEpoch<
+  TFunctionName extends 'getRemainingBuysInCurrentEpoch',
+  TSelectData = ReadContractResult<typeof deDcaABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>,
+    'abi' | 'address' | 'functionName'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractRead({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'getRemainingBuysInCurrentEpoch',
+    ...config,
+  } as UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"listStrategies"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useDeDcaListStrategies<
+  TFunctionName extends 'listStrategies',
+  TSelectData = ReadContractResult<typeof deDcaABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>,
+    'abi' | 'address' | 'functionName'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractRead({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'listStrategies',
+    ...config,
+  } as UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"owner"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useDeDcaOwner<
+  TFunctionName extends 'owner',
+  TSelectData = ReadContractResult<typeof deDcaABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>,
+    'abi' | 'address' | 'functionName'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractRead({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'owner',
+    ...config,
+  } as UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"strategies"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useDeDcaStrategies<
+  TFunctionName extends 'strategies',
+  TSelectData = ReadContractResult<typeof deDcaABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>,
+    'abi' | 'address' | 'functionName'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractRead({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'strategies',
+    ...config,
+  } as UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"strategyCounter"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useDeDcaStrategyCounter<
+  TFunctionName extends 'strategyCounter',
+  TSelectData = ReadContractResult<typeof deDcaABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>,
+    'abi' | 'address' | 'functionName'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractRead({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'strategyCounter',
+    ...config,
+  } as UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"userBuyInfos"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useDeDcaUserBuyInfos<
+  TFunctionName extends 'userBuyInfos',
+  TSelectData = ReadContractResult<typeof deDcaABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>,
+    'abi' | 'address' | 'functionName'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractRead({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'userBuyInfos',
+    ...config,
+  } as UseContractReadConfig<typeof deDcaABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractWrite}__ with `abi` set to __{@link deDcaABI}__.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useDeDcaWrite<
+  TFunctionName extends string,
+  TMode extends WriteContractMode = undefined,
+  TChainId extends number = keyof typeof deDcaAddress,
+>(
+  config: TMode extends 'prepared'
+    ? UseContractWriteConfig<
+        PrepareWriteContractResult<typeof deDcaABI, string>['request']['abi'],
+        TFunctionName,
+        TMode
+      > & { address?: Address; chainId?: TChainId }
+    : UseContractWriteConfig<typeof deDcaABI, TFunctionName, TMode> & {
+        abi?: never
+        address?: never
+        chainId?: TChainId
+      } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractWrite<typeof deDcaABI, TFunctionName, TMode>({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    ...config,
+  } as any)
+}
+
+/**
+ * Wraps __{@link useContractWrite}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"createNewStrategy"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useDeDcaCreateNewStrategy<
+  TMode extends WriteContractMode = undefined,
+  TChainId extends number = keyof typeof deDcaAddress,
+>(
+  config: TMode extends 'prepared'
+    ? UseContractWriteConfig<
+        PrepareWriteContractResult<
+          typeof deDcaABI,
+          'createNewStrategy'
+        >['request']['abi'],
+        'createNewStrategy',
+        TMode
+      > & {
+        address?: Address
+        chainId?: TChainId
+        functionName?: 'createNewStrategy'
+      }
+    : UseContractWriteConfig<typeof deDcaABI, 'createNewStrategy', TMode> & {
+        abi?: never
+        address?: never
+        chainId?: TChainId
+        functionName?: 'createNewStrategy'
+      } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractWrite<typeof deDcaABI, 'createNewStrategy', TMode>({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'createNewStrategy',
+    ...config,
+  } as any)
+}
+
+/**
+ * Wraps __{@link useContractWrite}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"triggerStrategyBuy"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useDeDcaTriggerStrategyBuy<
+  TMode extends WriteContractMode = undefined,
+  TChainId extends number = keyof typeof deDcaAddress,
+>(
+  config: TMode extends 'prepared'
+    ? UseContractWriteConfig<
+        PrepareWriteContractResult<
+          typeof deDcaABI,
+          'triggerStrategyBuy'
+        >['request']['abi'],
+        'triggerStrategyBuy',
+        TMode
+      > & {
+        address?: Address
+        chainId?: TChainId
+        functionName?: 'triggerStrategyBuy'
+      }
+    : UseContractWriteConfig<typeof deDcaABI, 'triggerStrategyBuy', TMode> & {
+        abi?: never
+        address?: never
+        chainId?: TChainId
+        functionName?: 'triggerStrategyBuy'
+      } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractWrite<typeof deDcaABI, 'triggerStrategyBuy', TMode>({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'triggerStrategyBuy',
+    ...config,
+  } as any)
+}
+
+/**
+ * Wraps __{@link useContractWrite}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"updateAllowedTriggerStrategyAddress"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useDeDcaUpdateAllowedTriggerStrategyAddress<
+  TMode extends WriteContractMode = undefined,
+  TChainId extends number = keyof typeof deDcaAddress,
+>(
+  config: TMode extends 'prepared'
+    ? UseContractWriteConfig<
+        PrepareWriteContractResult<
+          typeof deDcaABI,
+          'updateAllowedTriggerStrategyAddress'
+        >['request']['abi'],
+        'updateAllowedTriggerStrategyAddress',
+        TMode
+      > & {
+        address?: Address
+        chainId?: TChainId
+        functionName?: 'updateAllowedTriggerStrategyAddress'
+      }
+    : UseContractWriteConfig<
+        typeof deDcaABI,
+        'updateAllowedTriggerStrategyAddress',
+        TMode
+      > & {
+        abi?: never
+        address?: never
+        chainId?: TChainId
+        functionName?: 'updateAllowedTriggerStrategyAddress'
+      } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractWrite<
+    typeof deDcaABI,
+    'updateAllowedTriggerStrategyAddress',
+    TMode
+  >({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'updateAllowedTriggerStrategyAddress',
+    ...config,
+  } as any)
+}
+
+/**
+ * Wraps __{@link useContractWrite}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"userUpdateStrategy"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useDeDcaUserUpdateStrategy<
+  TMode extends WriteContractMode = undefined,
+  TChainId extends number = keyof typeof deDcaAddress,
+>(
+  config: TMode extends 'prepared'
+    ? UseContractWriteConfig<
+        PrepareWriteContractResult<
+          typeof deDcaABI,
+          'userUpdateStrategy'
+        >['request']['abi'],
+        'userUpdateStrategy',
+        TMode
+      > & {
+        address?: Address
+        chainId?: TChainId
+        functionName?: 'userUpdateStrategy'
+      }
+    : UseContractWriteConfig<typeof deDcaABI, 'userUpdateStrategy', TMode> & {
+        abi?: never
+        address?: never
+        chainId?: TChainId
+        functionName?: 'userUpdateStrategy'
+      } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractWrite<typeof deDcaABI, 'userUpdateStrategy', TMode>({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'userUpdateStrategy',
+    ...config,
+  } as any)
+}
+
+/**
+ * Wraps __{@link useContractWrite}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"withdraw"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useDeDcaWithdraw<
+  TMode extends WriteContractMode = undefined,
+  TChainId extends number = keyof typeof deDcaAddress,
+>(
+  config: TMode extends 'prepared'
+    ? UseContractWriteConfig<
+        PrepareWriteContractResult<
+          typeof deDcaABI,
+          'withdraw'
+        >['request']['abi'],
+        'withdraw',
+        TMode
+      > & { address?: Address; chainId?: TChainId; functionName?: 'withdraw' }
+    : UseContractWriteConfig<typeof deDcaABI, 'withdraw', TMode> & {
+        abi?: never
+        address?: never
+        chainId?: TChainId
+        functionName?: 'withdraw'
+      } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractWrite<typeof deDcaABI, 'withdraw', TMode>({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'withdraw',
+    ...config,
+  } as any)
+}
+
+/**
+ * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link deDcaABI}__.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function usePrepareDeDcaWrite<TFunctionName extends string>(
+  config: Omit<
+    UsePrepareContractWriteConfig<typeof deDcaABI, TFunctionName>,
+    'abi' | 'address'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return usePrepareContractWrite({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    ...config,
+  } as UsePrepareContractWriteConfig<typeof deDcaABI, TFunctionName>)
+}
+
+/**
+ * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"createNewStrategy"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function usePrepareDeDcaCreateNewStrategy(
+  config: Omit<
+    UsePrepareContractWriteConfig<typeof deDcaABI, 'createNewStrategy'>,
+    'abi' | 'address' | 'functionName'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return usePrepareContractWrite({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'createNewStrategy',
+    ...config,
+  } as UsePrepareContractWriteConfig<typeof deDcaABI, 'createNewStrategy'>)
+}
+
+/**
+ * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"triggerStrategyBuy"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function usePrepareDeDcaTriggerStrategyBuy(
+  config: Omit<
+    UsePrepareContractWriteConfig<typeof deDcaABI, 'triggerStrategyBuy'>,
+    'abi' | 'address' | 'functionName'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return usePrepareContractWrite({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'triggerStrategyBuy',
+    ...config,
+  } as UsePrepareContractWriteConfig<typeof deDcaABI, 'triggerStrategyBuy'>)
+}
+
+/**
+ * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"updateAllowedTriggerStrategyAddress"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function usePrepareDeDcaUpdateAllowedTriggerStrategyAddress(
+  config: Omit<
+    UsePrepareContractWriteConfig<
+      typeof deDcaABI,
+      'updateAllowedTriggerStrategyAddress'
+    >,
+    'abi' | 'address' | 'functionName'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return usePrepareContractWrite({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'updateAllowedTriggerStrategyAddress',
+    ...config,
+  } as UsePrepareContractWriteConfig<
+    typeof deDcaABI,
+    'updateAllowedTriggerStrategyAddress'
+  >)
+}
+
+/**
+ * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"userUpdateStrategy"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function usePrepareDeDcaUserUpdateStrategy(
+  config: Omit<
+    UsePrepareContractWriteConfig<typeof deDcaABI, 'userUpdateStrategy'>,
+    'abi' | 'address' | 'functionName'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return usePrepareContractWrite({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'userUpdateStrategy',
+    ...config,
+  } as UsePrepareContractWriteConfig<typeof deDcaABI, 'userUpdateStrategy'>)
+}
+
+/**
+ * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link deDcaABI}__ and `functionName` set to `"withdraw"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function usePrepareDeDcaWithdraw(
+  config: Omit<
+    UsePrepareContractWriteConfig<typeof deDcaABI, 'withdraw'>,
+    'abi' | 'address' | 'functionName'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return usePrepareContractWrite({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    functionName: 'withdraw',
+    ...config,
+  } as UsePrepareContractWriteConfig<typeof deDcaABI, 'withdraw'>)
+}
+
+/**
+ * Wraps __{@link useContractEvent}__ with `abi` set to __{@link deDcaABI}__.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useDeDcaEvent<TEventName extends string>(
+  config: Omit<
+    UseContractEventConfig<typeof deDcaABI, TEventName>,
+    'abi' | 'address'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
 ) {
   const { chain } = useNetwork()
   const defaultChainId = useChainId()
   const chainId = config.chainId ?? chain?.id ?? defaultChainId
   return useContractEvent({
-    abi: counterABI,
-    address: counterAddress[chainId as keyof typeof counterAddress],
-    eventName: 'Transfer',
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
     ...config,
-  } as UseContractEventConfig<typeof counterABI, 'Transfer'>)
+  } as UseContractEventConfig<typeof deDcaABI, TEventName>)
+}
+
+/**
+ * Wraps __{@link useContractEvent}__ with `abi` set to __{@link deDcaABI}__ and `eventName` set to `"NewStrategy"`.
+ *
+ * - [__View Contract on Ethereum Etherscan__](https://etherscan.io/address/0x1A61839Eb5fC6eBBcAe01eD5E79062E598792Dac)
+ * - [__View Contract on Goerli Etherscan__](https://goerli.etherscan.io/address/0x78991BB1D194C1235fe285240af8489CFA552151)
+ * -
+ */
+export function useDeDcaNewStrategyEvent(
+  config: Omit<
+    UseContractEventConfig<typeof deDcaABI, 'NewStrategy'>,
+    'abi' | 'address' | 'eventName'
+  > & { chainId?: keyof typeof deDcaAddress } = {} as any,
+) {
+  const { chain } = useNetwork()
+  const defaultChainId = useChainId()
+  const chainId = config.chainId ?? chain?.id ?? defaultChainId
+  return useContractEvent({
+    abi: deDcaABI,
+    address: deDcaAddress[chainId as keyof typeof deDcaAddress],
+    eventName: 'NewStrategy',
+    ...config,
+  } as UseContractEventConfig<typeof deDcaABI, 'NewStrategy'>)
 }
 
 /**

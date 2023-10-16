@@ -30,7 +30,7 @@ npm run wagmi
 
 This will use the wagmi config (`wagmi.config.ts`) to generate a `src/generated.ts` file which will include your ABIs & Hooks that you can start using in your project.
 
-[Here is an example](./src/components/Counter.tsx) of where Hooks from the generated file is being used.
+[Here is an example](./src/components/DeDCA.tsx) of where Hooks from the generated file is being used.
 
 # Deploying Contracts
 
@@ -100,7 +100,7 @@ pnpm run deploy:anvil
 
 Now that your contract has been deployed to Anvil, you can start playing around with your contract straight from the web interface!
 
-Head to [localhost:3000](http://localhost:3000) in your browser, connect your wallet, and try increment the counter on the Foundry chain.
+Head to [localhost:3000](http://localhost:3000) in your browser, connect your wallet, and try increment the DeDCA on the Foundry chain.
 
 > Tip: If you import an Anvil private key into your browser wallet (MetaMask, Coinbase Wallet, etc) – you will have 10,000 ETH to play with 😎. The private key is found in the terminal under "Private Keys" when you start up an Anvil instance with `npm run dev:foundry`.
 
