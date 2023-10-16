@@ -20,6 +20,17 @@ library DCAStructs {
         uint256 lastBuyAmountForTransitoryEpoch;
     }
 
+    struct ExternalReadUserInfo {
+        uint256 perBuyAmount;
+        uint256 originalPaymentBalance;
+        uint256 enteringEpochId;
+        uint256 lastBuyAmountForTransitoryEpoch;
+        uint256 buyingTokenOwed;
+        uint256 payingBalanceRemaining;
+        address paymentToken;
+        address buyingToken;
+    }
+
     struct DCAStrategy {
         ERC20 paymentToken;
         ERC20 buyingToken;
@@ -51,6 +62,36 @@ contract DeDCA {
         for (uint256 i = 0; i < numStrategies; i++) {
             strategyData[i] = strategies[firstStrategyId + i];
         }
+    }
+
+    function listUserPositions(address user) external view returns (DCAStructs.ExternalReadUserInfo[] memory userPositions) {
+        uint256 amountFound = 0;
+        for (uint256 i = 0; i < strategyCounter; i++) {
+            if (userBuyInfos[user][i].perBuyAmount > 0 || userBuyInfos[user][i].lastBuyAmountForTransitoryEpoch > 0) {
+                amountFound++;
+            }
+        }
+        userPositions = new DCAStructs.ExternalReadUserInfo[](amountFound);
+        uint256 foundInd = 0;
+        for (uint256 i = 0; i < strategyCounter; i++) {
+            if (userBuyInfos[user][i].perBuyAmount > 0 || userBuyInfos[user][i].lastBuyAmountForTransitoryEpoch > 0) {
+                DCAStructs.UserBuyInfo memory foundData = userBuyInfos[user][i];
+                DCAStructs.DCAStrategy memory strategy = strategies[i];
+                (uint256 amountSpent, uint256 amountOwed) = calculatePurchasesOwedAndBalanceSpent(i, user);
+                userPositions[foundInd] = DCAStructs.ExternalReadUserInfo({
+                    perBuyAmount: foundData.perBuyAmount,
+                    originalPaymentBalance: foundData.buyBalance,
+                    enteringEpochId: foundData.enteringEpochId,
+                    lastBuyAmountForTransitoryEpoch: foundData.lastBuyAmountForTransitoryEpoch,
+                    buyingTokenOwed: amountOwed,
+                    payingBalanceRemaining: foundData.buyBalance - amountSpent,
+                    paymentToken: address(strategy.paymentToken),
+                    buyingToken: address(strategy.buyingToken)
+                });
+                foundInd++;
+            }
+        }
+        return userPositions;
     }
 
     function updateAllowedTriggerStrategyAddress(address triggererAddress, bool updateTo) public {
