@@ -233,20 +233,30 @@ contract DeDCA {
         update cliffs
             remove cliff change from the further out cliff (eg if there was 30 epochs left, remove cliff there, move to next + 1)
     */
-    function withdraw(uint256 strategyId, address withdrawer) public {
+    function withdrawOrCollect(uint256 strategyId, address withdrawer, bool shouldWithdrawRemaining) public {
         require(msg.sender == withdrawer, "can't withdraw for someone else!");
         require(strategyId < strategyCounter, "invalid strategyId");
         DCAStructs.DCAStrategy storage strategy = strategies[strategyId];
         DCAStructs.UserBuyInfo storage userInfo = userBuyInfos[withdrawer][strategyId];
         (uint256 amountOwed, uint256 amountSpent) = calculatePurchasesOwedAndBalanceSpent(strategyId, withdrawer);
         userInfo.buyBalance -= amountSpent;
-        updateCliffsFromWithdraw(strategyId, withdrawer);
-        if (isInMiddleOfEpoch(strategy) && userInfo.buyBalance > 0) { // IN TRANSITORY EPOCH
-            userInfo.lastBuyAmountForTransitoryEpoch = userInfo.perBuyAmount;
+        uint256 currentEpoch = getCurrentEpoch(strategy);
+        if (shouldWithdrawRemaining) {
+            updateCliffsFromWithdraw(strategyId, withdrawer);
+            if (isInMiddleOfEpoch(strategy) && userInfo.buyBalance > 0) { // IN TRANSITORY EPOCH
+                userInfo.lastBuyAmountForTransitoryEpoch = userInfo.perBuyAmount;
+                userInfo.enteringEpochId = currentEpoch + 1;
+            } else {
+                userInfo.lastBuyAmountForTransitoryEpoch = 0;
+                userInfo.enteringEpochId = currentEpoch;
+            }
+            userInfo.perBuyAmount = 0;
         } else {
-            userInfo.lastBuyAmountForTransitoryEpoch = 0;
+            userInfo.enteringEpochId = currentEpoch;
         }
-
+        strategy.paymentBalance -= amountSpent;
+        require(strategy.buyingBalance >= amountOwed, "don't have enough bought asset to send!");
+        strategy.buyingBalance -= amountOwed;
         // SEND AMOUNT OWED
 
     }
