@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-
 library DCAStructs {
 
     struct BuyEpochInfo {
@@ -32,21 +30,22 @@ library DCAStructs {
     }
 
     struct DCAStrategy {
-        ERC20 paymentToken;
-        ERC20 buyingToken;
+        address paymentToken;
+        address buyingToken;
         uint256 perPeriodBuy;
         uint256 blocksPerPeriod;
         uint256 buysPerEpoch;
         uint256 buyCounter;
         uint256 paymentBalance;
         uint256 buyingBalance;
+        uint256 poolFee;
         bool disabled;
         bool depositsDisabled;
         uint256 lastBuyBlock;
     }
 }
 
-contract DeDCA {
+contract DeCA {
     uint256 public strategyCounter;
     address public owner;
     mapping(uint256 => DCAStructs.DCAStrategy) public strategies;
@@ -55,6 +54,7 @@ contract DeDCA {
     mapping(address => bool) allowedTriggerStrategyAddresses;
     
     event NewStrategy(uint256 strategyId, DCAStructs.DCAStrategy strategy);
+    ISwapRouter constant uniswapRouter = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
 
     function listStrategies(uint256 firstStrategyId, uint256 numStrategies) external view returns (DCAStructs.DCAStrategy[] memory strategyData) {
         require(strategyCounter >= firstStrategyId + numStrategies, "not that many strategies exist");
@@ -99,9 +99,25 @@ contract DeDCA {
         allowedTriggerStrategyAddresses[triggererAddress] = updateTo;
     }
 
-    // TODO: call uniswap etc
-    function swap(ERC20 paymentToken, ERC20 buyingToken, uint256 amountToPay) internal returns (uint256 amountBought, uint256 feePaid) {
-        return (amountBought, feePaid);
+    uint256 totalBps = 10000;
+
+    function swap(address paymentToken, address buyingToken, uint256 amountToPay, uint24 poolFee) internal returns (uint256 amountBought, uint256 feePaid) {
+        IERC20(paymentToken).approve(address(uniswapRouter), amountToPay);
+
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
+            .ExactInputSingleParams({
+                tokenIn: paymentToken,
+                tokenOut: buyingToken,
+                fee: poolFee,
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: amountToPay,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            });
+
+        amountBought = uniswapRouter.exactInputSingle(params);
+        return (amountBought, (amountToPay * poolFee) / totalBps);
     }
 
     function triggerStrategyBuy(uint256 strategyId) public {
@@ -116,7 +132,7 @@ contract DeDCA {
             strategy.perPeriodBuy += currentEpochBuyInfo.addCliff;
             strategy.perPeriodBuy -= currentEpochBuyInfo.subtractCliff;
         }
-        (uint256 amountBought, uint256 feePaid) = swap(strategy.paymentToken, strategy.buyingToken, strategy.perPeriodBuy);
+        (uint256 amountBought, uint256 feePaid) = swap(strategy.paymentToken, strategy.buyingToken, strategy.perPeriodBuy, uint24(strategy.poolFee));
         currentEpochBuyInfo.amountBought += amountBought;
         currentEpochBuyInfo.amountPaid += strategy.perPeriodBuy;
         currentEpochBuyInfo.keeperFeePaid += feePaid;
@@ -126,7 +142,7 @@ contract DeDCA {
         strategy.buyingBalance += amountBought;
     }
 
-    function createNewStrategy(ERC20 paymentToken, ERC20 buyingToken, uint256 blocksPerPeriod, uint256 buysPerEpoch) public {
+    function createNewStrategy(address paymentToken, address buyingToken, uint256 blocksPerPeriod, uint256 buysPerEpoch, uint256 poolFee) public {
         require(msg.sender == owner, "only owner");
         require(buysPerEpoch >= 1, "invalid epoch length");
         strategies[strategyCounter] = DCAStructs.DCAStrategy({
@@ -138,6 +154,7 @@ contract DeDCA {
             buyCounter: 0,
             buyingBalance: 0,
             paymentBalance: 0,
+            poolFee: poolFee,
             disabled: false,
             depositsDisabled: false,
             lastBuyBlock: block.number
@@ -348,4 +365,60 @@ contract DeDCA {
         return strategy.buyCounter / strategy.buysPerEpoch;
     }
 
+}
+
+interface ISwapRouter {
+    struct ExactInputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        address recipient;
+        uint deadline;
+        uint amountIn;
+        uint amountOutMinimum;
+        uint160 sqrtPriceLimitX96;
+    }
+
+    /// @notice Swaps amountIn of one token for as much as possible of another token
+    /// @param params The parameters necessary for the swap, encoded as ExactInputSingleParams in calldata
+    /// @return amountOut The amount of the received token
+    function exactInputSingle(
+        ExactInputSingleParams calldata params
+    ) external payable returns (uint amountOut);
+
+    struct ExactInputParams {
+        bytes path;
+        address recipient;
+        uint deadline;
+        uint amountIn;
+        uint amountOutMinimum;
+    }
+
+    /// @notice Swaps amountIn of one token for as much as possible of another along the specified path
+    /// @param params The parameters necessary for the multi-hop swap, encoded as ExactInputParams in calldata
+    /// @return amountOut The amount of the received token
+    function exactInput(
+        ExactInputParams calldata params
+    ) external payable returns (uint amountOut);
+}
+
+interface IERC20 {
+    function totalSupply() external view returns (uint);
+
+    function balanceOf(address account) external view returns (uint);
+
+    function transfer(address recipient, uint amount) external returns (bool);
+
+    function allowance(address owner, address spender) external view returns (uint);
+
+    function approve(address spender, uint amount) external returns (bool);
+
+    function transferFrom(
+        address sender,
+        address recipient,
+        uint amount
+    ) external returns (bool);
+
+    event Transfer(address indexed from, address indexed to, uint value);
+    event Approval(address indexed owner, address indexed spender, uint value);
 }

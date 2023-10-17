@@ -4,14 +4,14 @@ import { useState } from "react";
 import { useNetwork, useWaitForTransaction } from "wagmi";
 
 import {
-  useDeDCAIncrement,
-  useDeDCANumber,
-  useDeDCASetNumber,
-  usePrepareDeDCAIncrement,
-  usePrepareDeDCASetNumber,
+  useDeCAIncrement,
+  useDeCANumber,
+  useDeCASetNumber,
+  usePrepareDeCAIncrement,
+  usePrepareDeCASetNumber,
 } from "../generated";
 
-export function DeDCA() {
+export function DeCA() {
   return (
     <div>
       <Count />
@@ -22,23 +22,23 @@ export function DeDCA() {
 }
 
 function Count() {
-  const { data: count } = useDeDCANumber();
+  const { data: count } = useDeCANumber();
   return <div>Count: {count?.toString()}</div>;
 }
 
 function SetNumber() {
   const [value, setValue] = useState("");
 
-  const { config } = usePrepareDeDCASetNumber({
+  const { config } = usePrepareDeCASetNumber({
     args: value ? [BigInt(value)] : undefined,
     enabled: Boolean(value),
   });
-  const { data, write } = useDeDCASetNumber({
+  const { data, write } = useDeCASetNumber({
     ...config,
     onSuccess: () => setValue(""),
   });
 
-  const { refetch } = useDeDCANumber();
+  const { refetch } = useDeCANumber();
   const { isLoading } = useWaitForTransaction({
     hash: data?.hash,
     onSuccess: () => refetch(),
@@ -61,10 +61,10 @@ function SetNumber() {
 }
 
 function Increment() {
-  const { config } = usePrepareDeDCAIncrement();
-  const { data, write } = useDeDCAIncrement(config);
+  const { config } = usePrepareDeCAIncrement();
+  const { data, write } = useDeCAIncrement(config);
 
-  const { refetch } = useDeDCANumber();
+  const { refetch } = useDeCANumber();
   const { isLoading } = useWaitForTransaction({
     hash: data?.hash,
     onSuccess: () => refetch(),
