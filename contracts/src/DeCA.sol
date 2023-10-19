@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
+import {IERC20} from 'forge-std/interfaces/IERC20.sol';
+
 library DCAStructs {
 
     struct BuyEpochInfo {
@@ -42,6 +44,7 @@ library DCAStructs {
         bool disabled;
         bool depositsDisabled;
         uint256 lastBuyBlock;
+        uint256 minUserBuy;
     }
 }
 
@@ -142,7 +145,7 @@ contract DeCA {
         strategy.buyingBalance += amountBought;
     }
 
-    function createNewStrategy(address paymentToken, address buyingToken, uint256 blocksPerPeriod, uint256 buysPerEpoch, uint256 poolFee) public {
+    function createNewStrategy(address paymentToken, address buyingToken, uint256 blocksPerPeriod, uint256 buysPerEpoch, uint256 poolFee, uint256 minUserBuy) public {
         require(msg.sender == owner, "only owner");
         require(buysPerEpoch >= 1, "invalid epoch length");
         strategies[strategyCounter] = DCAStructs.DCAStrategy({
@@ -157,7 +160,8 @@ contract DeCA {
             poolFee: poolFee,
             disabled: false,
             depositsDisabled: false,
-            lastBuyBlock: block.number
+            lastBuyBlock: block.number,
+            minUserBuy: minUserBuy
         });
         strategyCounter += 1;
     }
@@ -274,16 +278,20 @@ contract DeCA {
         finalBuyEpochToUpdate.subtractCliff -= userInfo.perBuyAmount;  
     }
 
-    function updateCliffsFromAddStrategy(uint256 strategyId, uint256 amountPerBuy) internal {
+    function updateCliffsFromAddStrategy(uint256 strategyId, uint256 amountPerBuy, uint256 epochsToBuy) internal {
         DCAStructs.DCAStrategy storage strategy = strategies[strategyId];
         uint256 currentEpoch = getCurrentEpoch(strategy);
         bool isInMiddleOfCurrentEpoch = isInMiddleOfEpoch(strategy);
         if (isInMiddleOfCurrentEpoch) {
-            DCAStructs.BuyEpochInfo storage nextBuyEpochToUpdate = buyEpochs[strategyId][currentEpoch+1];
+            DCAStructs.BuyEpochInfo storage nextBuyEpochToUpdate = buyEpochs[strategyId][currentEpoch + 1];
             nextBuyEpochToUpdate.addCliff += amountPerBuy;
+            DCAStructs.BuyEpochInfo storage finalEpochToUpdate = buyEpochs[strategyId][currentEpoch + 1 + epochsToBuy];
+            finalEpochToUpdate.subtractCliff += amountPerBuy;
         } else {            
             DCAStructs.BuyEpochInfo storage unstartedCurrentBuyEpochToUpdate = buyEpochs[strategyId][currentEpoch];
             unstartedCurrentBuyEpochToUpdate.addCliff += amountPerBuy;
+            DCAStructs.BuyEpochInfo storage finalEpochToUpdate = buyEpochs[strategyId][currentEpoch + epochsToBuy];
+            finalEpochToUpdate.subtractCliff += amountPerBuy;
         }
     }
 
@@ -306,9 +314,15 @@ contract DeCA {
             if (isInMiddleOfEpoch(strategy) && userInfo.buyBalance > 0) { // IN TRANSITORY EPOCH
                 userInfo.lastBuyAmountForTransitoryEpoch = userInfo.perBuyAmount;
                 userInfo.enteringEpochId = currentEpoch + 1;
+                uint256 returnedBalanceExceptingForTransitory = userInfo.buyBalance - (userInfo.perBuyAmount * strategy.buysPerEpoch);
+                userInfo.buyBalance = userInfo.perBuyAmount * strategy.buysPerEpoch;
+                IERC20(strategy.paymentToken).transferFrom(address(this), msg.sender, returnedBalanceExceptingForTransitory);
             } else {
                 userInfo.lastBuyAmountForTransitoryEpoch = 0;
                 userInfo.enteringEpochId = currentEpoch;
+                uint256 returnedBalance = userInfo.buyBalance;
+                userInfo.buyBalance = 0;
+                IERC20(strategy.paymentToken).transferFrom(address(this), msg.sender, returnedBalance);
             }
             userInfo.perBuyAmount = 0;
         } else {
@@ -317,36 +331,49 @@ contract DeCA {
         strategy.paymentBalance -= amountSpent;
         require(strategy.buyingBalance >= amountOwed, "don't have enough bought asset to send!");
         strategy.buyingBalance -= amountOwed;
-        // SEND AMOUNT OWED
 
+        IERC20(strategy.buyingToken).transferFrom(address(this), withdrawer, amountOwed);
     }
 
-    function userUpdateStrategy(uint256 strategyId, uint256 newBuyAmount, uint256 balanceToDeposit, uint256 epochsToBuy) public payable {
-        require(msg.value == balanceToDeposit, "incorrect balance deposit");
-        require(newBuyAmount >= 10000000000000, "newBuyAmountTooLow");
+    /*
+        This function is used to create or update a buy position, but not to exit.  For exit use withdrawOrCollect.
+        This function takes in a new userBuy, a new number of epochs to buy, and a desired final balance.
+
+        It withdraws the existing payment to set the slate clean, minus the transitory epoch requirements.
+        It then transfers the amount needed (from/to the user) for the new payment balance.
+        It sets up the epoch cliffs for when the user joins/exits the strategy's buys.
+        Finally it sets the user buy values.
+    */
+    function userUpdateStrategy(uint256 strategyId, uint256 newBuyAmount, uint256 desiredPaymentBalance, uint256 epochsToBuy) public payable {
         require(strategyId < strategyCounter, "invalid strategyId");
         DCAStructs.DCAStrategy storage strategy = strategies[strategyId];
+        require(newBuyAmount >= strategy.minUserBuy, "newBuyAmountTooLow");
         require(!strategy.disabled && !strategy.depositsDisabled, "strategy is disabled");
         require(epochsToBuy >= 1, "must buy at least 1 full epoch");
-
+    
         DCAStructs.UserBuyInfo storage userInfo = userBuyInfos[msg.sender][strategyId];
-        if (userInfo.perBuyAmount != 0) { // existing strategy, must withdraw all but current active epoch before update
-
+        if (userInfo.perBuyAmount != 0 || userInfo.lastBuyAmountForTransitoryEpoch != 0) { // existing strategy, must withdraw all but current active epoch before update
+            withdrawOrCollect(strategyId, msg.sender, true);
         }
+        userInfo = userBuyInfos[msg.sender][strategyId];
         uint256 currentEpoch = getCurrentEpoch(strategy);
         uint256 balanceRequiredForTransitoryEpoch = userInfo.lastBuyAmountForTransitoryEpoch * strategy.buysPerEpoch;
         uint256 userBuysPerEpoch = newBuyAmount * strategy.buysPerEpoch;
-        uint256 newUserBalance = userInfo.buyBalance + balanceToDeposit;
-        require(newUserBalance  == (userBuysPerEpoch * epochsToBuy) + balanceRequiredForTransitoryEpoch, "existing balance + deposit does not equal target");
-        // don't want to have to deal with remainders so only allow exact deposits
-        require((newUserBalance - balanceRequiredForTransitoryEpoch) % userBuysPerEpoch == 0, "not exact epoch deposit");
-        userInfo.buyBalance = newUserBalance;
+        require(desiredPaymentBalance == (userBuysPerEpoch * epochsToBuy) + balanceRequiredForTransitoryEpoch, "required balance does not equal target");
+        if (desiredPaymentBalance > userInfo.buyBalance) {
+            uint256 extraPaymentNeeded = desiredPaymentBalance - userInfo.buyBalance;
+            IERC20(strategy.paymentToken).transferFrom(msg.sender, address(this), extraPaymentNeeded);
+        } else if (desiredPaymentBalance < userInfo.buyBalance) {
+            uint256 extraBalanceReturned = userInfo.buyBalance - desiredPaymentBalance;
+            IERC20(strategy.paymentToken).transferFrom(address(this), msg.sender, extraBalanceReturned);
+        }
+        updateCliffsFromAddStrategy(strategyId, newBuyAmount, epochsToBuy);
+        userInfo.buyBalance = desiredPaymentBalance;
         userInfo.perBuyAmount = newBuyAmount;
-        userInfo.enteringEpochId = currentEpoch + 1;
-
-        DCAStructs.BuyEpochInfo storage enteringEpochInfo = buyEpochs[strategyId][currentEpoch + 1];
-        if (newBuyAmount > userInfo.lastBuyAmountForTransitoryEpoch) {
-
+        if (userInfo.lastBuyAmountForTransitoryEpoch == 0 && !isInMiddleOfEpoch(strategy)) {
+            userInfo.enteringEpochId = currentEpoch;
+        } else {
+            userInfo.enteringEpochId = currentEpoch + 1;
         }
     }
 
@@ -400,25 +427,4 @@ interface ISwapRouter {
     function exactInput(
         ExactInputParams calldata params
     ) external payable returns (uint amountOut);
-}
-
-interface IERC20 {
-    function totalSupply() external view returns (uint);
-
-    function balanceOf(address account) external view returns (uint);
-
-    function transfer(address recipient, uint amount) external returns (bool);
-
-    function allowance(address owner, address spender) external view returns (uint);
-
-    function approve(address spender, uint amount) external returns (bool);
-
-    function transferFrom(
-        address sender,
-        address recipient,
-        uint amount
-    ) external returns (bool);
-
-    event Transfer(address indexed from, address indexed to, uint value);
-    event Approval(address indexed owner, address indexed spender, uint value);
 }
