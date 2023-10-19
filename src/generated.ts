@@ -273,6 +273,7 @@ export const counterABI = [
  * -
  */
 export const deCaABI = [
+  { stateMutability: 'nonpayable', type: 'constructor', inputs: [] },
   {
     type: 'event',
     anonymous: false,
@@ -583,6 +584,34 @@ export const deCaAddress = {
  * -
  */
 export const deCaConfig = { address: deCaAddress, abi: deCaABI } as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// DeCAScript
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const deCaScriptABI = [
+  {
+    stateMutability: 'view',
+    type: 'function',
+    inputs: [],
+    name: 'IS_SCRIPT',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+  },
+  {
+    stateMutability: 'nonpayable',
+    type: 'function',
+    inputs: [],
+    name: 'run',
+    outputs: [],
+  },
+  {
+    stateMutability: 'nonpayable',
+    type: 'function',
+    inputs: [],
+    name: 'setUp',
+    outputs: [],
+  },
+] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ERC20
@@ -2686,6 +2715,166 @@ export function useDeCaNewStrategyEvent(
     eventName: 'NewStrategy',
     ...config,
   } as UseContractEventConfig<typeof deCaABI, 'NewStrategy'>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link deCaScriptABI}__.
+ */
+export function useDeCaScriptRead<
+  TFunctionName extends string,
+  TSelectData = ReadContractResult<typeof deCaScriptABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof deCaScriptABI, TFunctionName, TSelectData>,
+    'abi'
+  > = {} as any,
+) {
+  return useContractRead({
+    abi: deCaScriptABI,
+    ...config,
+  } as UseContractReadConfig<typeof deCaScriptABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractRead}__ with `abi` set to __{@link deCaScriptABI}__ and `functionName` set to `"IS_SCRIPT"`.
+ */
+export function useDeCaScriptIsScript<
+  TFunctionName extends 'IS_SCRIPT',
+  TSelectData = ReadContractResult<typeof deCaScriptABI, TFunctionName>,
+>(
+  config: Omit<
+    UseContractReadConfig<typeof deCaScriptABI, TFunctionName, TSelectData>,
+    'abi' | 'functionName'
+  > = {} as any,
+) {
+  return useContractRead({
+    abi: deCaScriptABI,
+    functionName: 'IS_SCRIPT',
+    ...config,
+  } as UseContractReadConfig<typeof deCaScriptABI, TFunctionName, TSelectData>)
+}
+
+/**
+ * Wraps __{@link useContractWrite}__ with `abi` set to __{@link deCaScriptABI}__.
+ */
+export function useDeCaScriptWrite<
+  TFunctionName extends string,
+  TMode extends WriteContractMode = undefined,
+>(
+  config: TMode extends 'prepared'
+    ? UseContractWriteConfig<
+        PrepareWriteContractResult<
+          typeof deCaScriptABI,
+          string
+        >['request']['abi'],
+        TFunctionName,
+        TMode
+      >
+    : UseContractWriteConfig<typeof deCaScriptABI, TFunctionName, TMode> & {
+        abi?: never
+      } = {} as any,
+) {
+  return useContractWrite<typeof deCaScriptABI, TFunctionName, TMode>({
+    abi: deCaScriptABI,
+    ...config,
+  } as any)
+}
+
+/**
+ * Wraps __{@link useContractWrite}__ with `abi` set to __{@link deCaScriptABI}__ and `functionName` set to `"run"`.
+ */
+export function useDeCaScriptRun<TMode extends WriteContractMode = undefined>(
+  config: TMode extends 'prepared'
+    ? UseContractWriteConfig<
+        PrepareWriteContractResult<
+          typeof deCaScriptABI,
+          'run'
+        >['request']['abi'],
+        'run',
+        TMode
+      > & { functionName?: 'run' }
+    : UseContractWriteConfig<typeof deCaScriptABI, 'run', TMode> & {
+        abi?: never
+        functionName?: 'run'
+      } = {} as any,
+) {
+  return useContractWrite<typeof deCaScriptABI, 'run', TMode>({
+    abi: deCaScriptABI,
+    functionName: 'run',
+    ...config,
+  } as any)
+}
+
+/**
+ * Wraps __{@link useContractWrite}__ with `abi` set to __{@link deCaScriptABI}__ and `functionName` set to `"setUp"`.
+ */
+export function useDeCaScriptSetUp<TMode extends WriteContractMode = undefined>(
+  config: TMode extends 'prepared'
+    ? UseContractWriteConfig<
+        PrepareWriteContractResult<
+          typeof deCaScriptABI,
+          'setUp'
+        >['request']['abi'],
+        'setUp',
+        TMode
+      > & { functionName?: 'setUp' }
+    : UseContractWriteConfig<typeof deCaScriptABI, 'setUp', TMode> & {
+        abi?: never
+        functionName?: 'setUp'
+      } = {} as any,
+) {
+  return useContractWrite<typeof deCaScriptABI, 'setUp', TMode>({
+    abi: deCaScriptABI,
+    functionName: 'setUp',
+    ...config,
+  } as any)
+}
+
+/**
+ * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link deCaScriptABI}__.
+ */
+export function usePrepareDeCaScriptWrite<TFunctionName extends string>(
+  config: Omit<
+    UsePrepareContractWriteConfig<typeof deCaScriptABI, TFunctionName>,
+    'abi'
+  > = {} as any,
+) {
+  return usePrepareContractWrite({
+    abi: deCaScriptABI,
+    ...config,
+  } as UsePrepareContractWriteConfig<typeof deCaScriptABI, TFunctionName>)
+}
+
+/**
+ * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link deCaScriptABI}__ and `functionName` set to `"run"`.
+ */
+export function usePrepareDeCaScriptRun(
+  config: Omit<
+    UsePrepareContractWriteConfig<typeof deCaScriptABI, 'run'>,
+    'abi' | 'functionName'
+  > = {} as any,
+) {
+  return usePrepareContractWrite({
+    abi: deCaScriptABI,
+    functionName: 'run',
+    ...config,
+  } as UsePrepareContractWriteConfig<typeof deCaScriptABI, 'run'>)
+}
+
+/**
+ * Wraps __{@link usePrepareContractWrite}__ with `abi` set to __{@link deCaScriptABI}__ and `functionName` set to `"setUp"`.
+ */
+export function usePrepareDeCaScriptSetUp(
+  config: Omit<
+    UsePrepareContractWriteConfig<typeof deCaScriptABI, 'setUp'>,
+    'abi' | 'functionName'
+  > = {} as any,
+) {
+  return usePrepareContractWrite({
+    abi: deCaScriptABI,
+    functionName: 'setUp',
+    ...config,
+  } as UsePrepareContractWriteConfig<typeof deCaScriptABI, 'setUp'>)
 }
 
 /**
