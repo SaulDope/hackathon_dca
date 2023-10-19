@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
+import UpdateModal from "./UpdateModal";
+import CollectModal from "./CollectModal";
 
 type Position = {
   buying: string;
@@ -49,33 +51,63 @@ type PositionsProps = {
 };
 
 const Positions: React.FC<PositionsProps> = ({ onActionClick }) => {
+  const [isUpdateModalOpen, setUpdateModalOpen] = useState(false);
+  const [isCollectModalOpen, setCollectModalOpen] = useState(false);
+
+  const handleUpdateClick = (position: Position) => {
+    onActionClick();
+    setUpdateModalOpen(true);
+  };
+
+  const handleCollectClick = (position: Position) => {
+    onActionClick();
+    setCollectModalOpen(true);
+  };
+
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>BUYING</th>
-          <th>PAYING</th>
-          <th>BUY</th>
-          <th>BOUGHT</th>
-          <th>BUYS REMAINING</th>
-          <th>ACTIONS</th>
-        </tr>
-      </thead>
-      <tbody>
-        {PositionsData.map((position, index) => (
-          <tr key={index}>
-            <td>{position.buying}</td>
-            <td>{position.paying}</td>
-            <td>{position.buy}</td>
-            <td>{position.bought}</td>
-            <td>{position.left}</td>
-            <td>
-              <button onClick={onActionClick}>{position.actions}</button>
-            </td>
+    <>
+      <table>
+        <thead>
+          <tr>
+            <th>BUYING</th>
+            <th>PAYING</th>
+            <th>BUY</th>
+            <th>BOUGHT</th>
+            <th>BUYS REMAINING</th>
+            <th colSpan={2}>ACTIONS</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {PositionsData.map((position, index) => (
+            <tr key={index}>
+              <td>{position.buying}</td>
+              <td>{position.paying}</td>
+              <td>{position.buy}</td>
+              <td>{position.bought}</td>
+              <td>{position.left}</td>
+              <td>
+                <button onClick={() => handleUpdateClick(position)}>
+                  UPDATE
+                </button>
+              </td>
+              <td>
+                <button onClick={() => handleCollectClick(position)}>
+                  COLLECT
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <UpdateModal
+        isOpen={isUpdateModalOpen}
+        onClose={() => setUpdateModalOpen(false)}
+      />
+      <CollectModal
+        isOpen={isCollectModalOpen}
+        onClose={() => setCollectModalOpen(false)}
+      />
+    </>
   );
 };
 

@@ -8,26 +8,6 @@ const Tables = () => {
   const [activeTab, setActiveTab] = useState<string>("strategies");
   const [isModalOpen, setModalOpen] = useState<boolean>(false);
 
-  const modalRef = useRef<HTMLDivElement | null>(null);
-
-  const handleClickOutside = (event: MouseEvent) => {
-    if (
-      isModalOpen &&
-      modalRef.current &&
-      !modalRef.current.contains(event.target as Node)
-    ) {
-      setModalOpen(false);
-    }
-  };
-
-  useEffect(() => {
-    document.addEventListener("mousedown", handleClickOutside);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isModalOpen]);
-
   return (
     <div className="tabs">
       <div className="tab-headers">
@@ -51,22 +31,6 @@ const Tables = () => {
 
       {activeTab === "positions" && (
         <Positions onActionClick={() => setModalOpen(true)} />
-      )}
-
-      {/* Modal */}
-      {isModalOpen && (
-        <div className="modal" ref={modalRef}>
-          <div className="modal-header">
-            <h2>Deposit</h2>
-            <button onClick={() => setModalOpen(false)} className="close-btn">
-              X
-            </button>
-          </div>
-          <div className="modal-content">
-            {/* Add modal content here */}
-            <p>Deposit modal functions</p>
-          </div>
-        </div>
       )}
     </div>
   );

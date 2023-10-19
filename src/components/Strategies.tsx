@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
+import DepositModal from "./DepositModal";
 
 type Strategy = {
   buying: string;
@@ -49,33 +50,46 @@ type StrategiesProps = {
 };
 
 const Strategies: React.FC<StrategiesProps> = ({ onActionClick }) => {
+  const [isModalOpen, setModalOpen] = useState(false); // 2. Maintain a state
+  const modalRef = useRef<HTMLDivElement | null>(null);
+
+  const handleActionClick = (strategy: Strategy) => {
+    onActionClick(); // call the parent's action
+    setModalOpen(true); // open the modal
+  };
+
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>BUYING</th>
-          <th>PAYING</th>
-          <th>DEX</th>
-          <th>TIME/BUY</th>
-          <th>NEXT BUY</th>
-          <th>ACTIONS</th>
-        </tr>
-      </thead>
-      <tbody>
-        {strategiesData.map((strategy, index) => (
-          <tr key={index}>
-            <td>{strategy.buying}</td>
-            <td>{strategy.paying}</td>
-            <td>{strategy.dex}</td>
-            <td>{strategy.timePerBuy}</td>
-            <td>{strategy.avgFeesPerBuy}</td>
-            <td>
-              <button onClick={onActionClick}>{strategy.actions}</button>
-            </td>
+    <>
+      <table>
+        <thead>
+          <tr>
+            <th>BUYING</th>
+            <th>PAYING</th>
+            <th>DEX</th>
+            <th>TIME/BUY</th>
+            <th>NEXT BUY</th>
+            <th>ACTIONS</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {strategiesData.map((strategy, index) => (
+            <tr key={index}>
+              <td>{strategy.buying}</td>
+              <td>{strategy.paying}</td>
+              <td>{strategy.dex}</td>
+              <td>{strategy.timePerBuy}</td>
+              <td>{strategy.avgFeesPerBuy}</td>
+              <td>
+                <button onClick={() => handleActionClick(strategy)}>
+                  DEPOSIT
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <DepositModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} />
+    </>
   );
 };
 

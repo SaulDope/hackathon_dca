@@ -341,8 +341,11 @@ td {
 }
 
 table tbody tr:hover {
-  cursor: pointer;
   background-color: #333;
+}
+
+table tr button:hover {
+  cursor: pointer;
 }
 
 table tbody tr:last-child {
