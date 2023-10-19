@@ -114,3 +114,46 @@ To learn more about [Next.js](https://nextjs.org), [Foundry](https://book.getfou
 - [@wagmi/cli Documentation](https://wagmi.sh/cli) – learn more about the wagmi CLI.
 - [Next.js Documentation](https://nextjs.org/docs) learn about Next.js features and API.
 - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+## COMMANDS
+
+Good to know:
+
+- polygon blocktime 2s
+
+forge create src/DeCA.sol:DeCA --private-key=$PKEY -r https://rpc.ankr.com/polygon_mumbai
+
+### createNewStrategy(address paymentToken, address buyingToken, uint256 blocksPerPeriod, uint256 buysPerEpoch, uint256 poolFee, uint256 minUserBuy)
+
+### MUMBAI WETH: 0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa
+
+### MUMBAI WMATIC: 0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889
+
+#### PAY WMATIC, BUY WETH, EVERY MINUTE (30 BLOCKS), SINGLE BUY EPOCH, NO FEE, 0.000001 ETH MIN
+
+### NOW IN CONSTRUCTOR SO IGNORE
+
+cast send $DCACONTRACT "createNewStrategy(address, address, uint256, uint256, uint256, uint256)" 0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889 0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa 30 1 0 1000000000000 --private-key $PKEY -r https://rpc.ankr.com/polygon_mumbai
+
+## listStrategies(uint256 firstStrategyId, uint256 numStrategies)
+
+cast call $DCACONTRACT "listStrategies(uint256, uint256)" 0 1 -r https://rpc.ankr.com/polygon_mumbai
+
+### WMATIC APPROVE
+
+cast send 0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889 "approve(address, uint256)" $DCACONTRACT 100000000000000000 --private-key $UPKEY -r https://rpc.ankr.com/polygon_mumbai
+
+### userUpdateStrategy(uint256 strategyId, uint256 newBuyAmount, uint256 desiredPaymentBalance, uint256 epochsToBuy)
+
+cast send $DCACONTRACT "userUpdateStrategy(uint256, uint256, uint256, uint256)" 0 1000000000000 10000000000000 10 --private-key $UPKEY -r https://rpc.ankr.com/polygon_mumbai
+
+### triggerStrategyBuy(uint256 strategyId)
+
+cast send $DCACONTRACT "triggerStrategyBuy(uint256)" 0 --private-key $PKEY -r https://rpc.ankr.com/polygon_mumbai
+
+
+cast rpc anvil_setBalance 0xceF7a02C77B2Ad2c262B2eE232B89002f1A9a5aB 1000000000000000000 --rpc-url $RPC
+
+https://eth-sepolia.g.alchemy.com/v2/demo
+
+https://rpc.ankr.com/eth_goerli

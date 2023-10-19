@@ -59,6 +59,13 @@ contract DeCA {
     event NewStrategy(uint256 strategyId, DCAStructs.DCAStrategy strategy);
     ISwapRouter constant uniswapRouter = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
 
+    constructor() {
+        owner = msg.sender;
+        allowedTriggerStrategyAddresses[msg.sender] = true;
+        // PAY WMATIC, BUY WETH ON MUMBAI TESTNET
+        createNewStrategy(0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889, 0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa, 30, 1, 0, 1000000000000);
+    }
+
     function listStrategies(uint256 firstStrategyId, uint256 numStrategies) external view returns (DCAStructs.DCAStrategy[] memory strategyData) {
         require(strategyCounter >= firstStrategyId + numStrategies, "not that many strategies exist");
         strategyData = new DCAStructs.DCAStrategy[](numStrategies);
@@ -105,7 +112,10 @@ contract DeCA {
     uint256 totalBps = 10000;
 
     function swap(address paymentToken, address buyingToken, uint256 amountToPay, uint24 poolFee) internal returns (uint256 amountBought, uint256 feePaid) {
-        IERC20(paymentToken).approve(address(uniswapRouter), amountToPay);
+        if (amountToPay == 0) {
+            return (0, 0);
+        }
+        require(IERC20(paymentToken).approve(address(uniswapRouter), amountToPay), "pre-swap approve fail");
 
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
             .ExactInputSingleParams({
@@ -120,6 +130,7 @@ contract DeCA {
             });
 
         amountBought = uniswapRouter.exactInputSingle(params);
+        require(amountBought > 0, "uniswap returned 0");
         return (amountBought, (amountToPay * poolFee) / totalBps);
     }
 
@@ -148,6 +159,9 @@ contract DeCA {
     function createNewStrategy(address paymentToken, address buyingToken, uint256 blocksPerPeriod, uint256 buysPerEpoch, uint256 poolFee, uint256 minUserBuy) public {
         require(msg.sender == owner, "only owner");
         require(buysPerEpoch >= 1, "invalid epoch length");
+        require(blocksPerPeriod >= 1, "invalid period length");
+        require(minUserBuy >= 1, "invalid min buy");
+        // TODO confirm tokens are IERC20
         strategies[strategyCounter] = DCAStructs.DCAStrategy({
             paymentToken: paymentToken,
             buyingToken: buyingToken,
@@ -165,8 +179,6 @@ contract DeCA {
         });
         strategyCounter += 1;
     }
-
-    uint256 minimumUserBuy = 10000000000000; // 0.00001 ETH
 
     function calculateUserCut(uint256 userAmountPaid, DCAStructs.BuyEpochInfo memory epochInfo) internal pure returns (uint256) {
         if (epochInfo.amountBought == 0) {
@@ -316,19 +328,20 @@ contract DeCA {
                 userInfo.enteringEpochId = currentEpoch + 1;
                 uint256 returnedBalanceExceptingForTransitory = userInfo.buyBalance - (userInfo.perBuyAmount * strategy.buysPerEpoch);
                 userInfo.buyBalance = userInfo.perBuyAmount * strategy.buysPerEpoch;
+                strategy.paymentBalance -= returnedBalanceExceptingForTransitory;
                 IERC20(strategy.paymentToken).transferFrom(address(this), msg.sender, returnedBalanceExceptingForTransitory);
             } else {
                 userInfo.lastBuyAmountForTransitoryEpoch = 0;
                 userInfo.enteringEpochId = currentEpoch;
                 uint256 returnedBalance = userInfo.buyBalance;
                 userInfo.buyBalance = 0;
+                strategy.paymentBalance -= returnedBalance;
                 IERC20(strategy.paymentToken).transferFrom(address(this), msg.sender, returnedBalance);
             }
             userInfo.perBuyAmount = 0;
         } else {
             userInfo.enteringEpochId = currentEpoch;
         }
-        strategy.paymentBalance -= amountSpent;
         require(strategy.buyingBalance >= amountOwed, "don't have enough bought asset to send!");
         strategy.buyingBalance -= amountOwed;
 
@@ -363,9 +376,11 @@ contract DeCA {
         if (desiredPaymentBalance > userInfo.buyBalance) {
             uint256 extraPaymentNeeded = desiredPaymentBalance - userInfo.buyBalance;
             IERC20(strategy.paymentToken).transferFrom(msg.sender, address(this), extraPaymentNeeded);
+            strategy.paymentBalance += extraPaymentNeeded;
         } else if (desiredPaymentBalance < userInfo.buyBalance) {
             uint256 extraBalanceReturned = userInfo.buyBalance - desiredPaymentBalance;
             IERC20(strategy.paymentToken).transferFrom(address(this), msg.sender, extraBalanceReturned);
+            strategy.paymentBalance -= extraBalanceReturned;
         }
         updateCliffsFromAddStrategy(strategyId, newBuyAmount, epochsToBuy);
         userInfo.buyBalance = desiredPaymentBalance;
