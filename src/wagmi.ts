@@ -1,22 +1,20 @@
 import { configureChains, createConfig } from 'wagmi'
-import { foundry, goerli, mainnet, sepolia } from 'wagmi/chains'
+import { polygonMumbai, sepolia } from 'wagmi/chains'
 import { CoinbaseWalletConnector } from 'wagmi/connectors/coinbaseWallet'
-import { InjectedConnector } from 'wagmi/connectors/injected'
 import { MetaMaskConnector } from 'wagmi/connectors/metaMask'
 import { WalletConnectConnector } from 'wagmi/connectors/walletConnect'
+import { infuraProvider } from "wagmi/providers/infura";
 
-import { publicProvider } from 'wagmi/providers/public'
-
-const walletConnectProjectId = '09ad5511d60f4b0228d881ecee1278ef'
+const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || '';
+const infuraKey = process.env.NEXT_PUBLIC_INFURA_API_KEY || '';
 
 const { chains, publicClient, webSocketPublicClient } = configureChains(
   [
-    mainnet,
-    ...(process.env.NODE_ENV === 'development' ? [goerli, sepolia,foundry] : []),
+    // polygon,
+    ...(process.env.NODE_ENV === 'development' ? [polygonMumbai, sepolia] : []),
+
   ],
-  [
-    publicProvider(),
-  ],
+  [infuraProvider({ apiKey: infuraKey })],
 )
 
 export const config = createConfig({
@@ -35,13 +33,6 @@ export const config = createConfig({
         projectId: walletConnectProjectId,
       },
     }),
-    // new InjectedConnector({
-    //   chains,
-    //   options: {
-    //     name: 'Injected',
-    //     shimDisconnect: true,
-    //   },
-    // }),
   ],
   publicClient,
   webSocketPublicClient,

@@ -19,7 +19,7 @@ export function Account() {
   const { data } = useBalance({
     address: address,
   });
-  console.log(data);
+
   const [showNetworkModal, setShowNetworkModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
