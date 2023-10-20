@@ -15,14 +15,14 @@ export function Body() {
         <>
           <div className="homepage">
             <header>
-              <h1>Introducing Onchain DCA</h1>
+              <h1>Introducing DeCA</h1>
               <p>Automate Your Crypto Investments</p>
             </header>
 
             <section className="introduction">
               <h2>Simple and Smart</h2>
               <p>
-                Onchain DCA (Dollar-Cost Averaging) offers a straightforward
+                DeCA (Decentralized Cost Averaging) offers a straightforward
                 approach to managing your crypto investments.
               </p>
             </section>
@@ -60,12 +60,37 @@ export function Body() {
 
             <section className="example-scenario">
               <h2>Example Scenario</h2>
-              <p>
-                Alice deposits 10 WETH with a daily buy of 0.25 WETH, resulting
-                in a total daily buy of 1 ETH. The buy ID for her first purchase
-                is 25. As she buys more, the owed RLB is calculated based on her
-                percentage of the total buys.
-              </p>
+              <ul>
+                <li> Alice deposits 10 wETH, daily buy is .25 wETH, for RLB</li>
+                <li> Total daily buy w/ user is at 1 ETH</li>
+                <li> Next Buy id at users deposit is 25</li>
+                <li> Buy 25: 1 ETH for 100 RLB</li>
+                <li> Buy 26: 1 ETH for 80 RLB</li>
+                <li>
+                  {" "}
+                  Before buy 27, a different user Bob withdraws their .5 ETH of
+                  daily buy
+                </li>
+                <li> Buy 27: .5 ETH for 46 RLB</li>
+                <li> Buy 28: .5 ETH for 54 RLB</li>
+                <li> Another user Charlie adds 1.5 ETH to daily buy</li>
+                <li> Buy 29: 2 ETH for 208 RLB</li>
+                <li>
+                  {" "}
+                  Alice wants to withdraw, so we calculate the following:
+                </li>
+                <li>
+                  {" "}
+                  Day 25-26 she was 25% (.25/1) of a total of 180 RLB bought,
+                  180*.25 = 45
+                </li>
+                <li>
+                  {" "}
+                  Day 27-28 she was 50% (.25/.5) of 100 bought, 100*.5 = 50
+                </li>
+                <li> Day 29 she was 12.5% of 208 bought, owed 26</li>
+                <li>Total owed: 121 RLB</li>
+              </ul>
             </section>
 
             <section className="caveats-ideas">
@@ -106,8 +131,8 @@ export function Body() {
             </section>
 
             <section className="join-now">
-              <h2>Join Onchain DCA Today</h2>
-              <p>Simplify your crypto investment strategy with Onchain DCA!</p>
+              <h2>Join DeCA Today</h2>
+              <p>Simplify your crypto investment strategy with DeCA!</p>
             </section>
           </div>
         </>

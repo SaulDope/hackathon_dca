@@ -1,7 +1,7 @@
 import { Providers } from "./providers";
 
 export const metadata = {
-  title: "DCA-Onchain",
+  title: "DeCA",
 };
 
 export default function RootLayout({
