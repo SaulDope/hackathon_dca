@@ -1,46 +1,46 @@
 import React, { useState, useRef, useEffect } from "react";
 import DepositModal from "./DepositModal";
 
-type Strategy = {
-  buying: string;
-  paying: string;
+export type Strategy = {
+  buyingToken: string;
+  paymentToken: string;
   dex: string;
-  timePerBuy: string;
-  avgFeesPerBuy: string;
+  blocksPerPeriod: string;
+  lastBuyBlock: string;
   actions: string;
 };
 
 const strategiesData: Strategy[] = [
   {
-    buying: "WBTC",
-    paying: "USDC",
+    buyingToken: "WBTC",
+    paymentToken: "USDC",
     dex: "UNISWAP",
-    timePerBuy: "2D",
-    avgFeesPerBuy: "300 BLOCKS",
+    blocksPerPeriod: "2D",
+    lastBuyBlock: "300 BLOCKS",
     actions: "DEPOSIT",
   },
   {
-    buying: "WETH",
-    paying: "USDC",
+    buyingToken: "WETH",
+    paymentToken: "USDC",
     dex: "UNISWAP",
-    timePerBuy: "4H",
-    avgFeesPerBuy: "300 BLOCKS",
+    blocksPerPeriod: "4H",
+    lastBuyBlock: "300 BLOCKS",
     actions: "DEPOSIT",
   },
   {
-    buying: "LINK",
-    paying: "USDC",
+    buyingToken: "LINK",
+    paymentToken: "USDC",
     dex: "UNISWAP",
-    timePerBuy: "1W",
-    avgFeesPerBuy: "300 BLOCKS",
+    blocksPerPeriod: "1W",
+    lastBuyBlock: "300 BLOCKS",
     actions: "DEPOSIT",
   },
   {
-    buying: "UNI",
-    paying: "USDC",
+    buyingToken: "UNI",
+    paymentToken: "USDC",
     dex: "UNISWAP",
-    timePerBuy: "1D",
-    avgFeesPerBuy: "300 BLOCKS",
+    blocksPerPeriod: "1D",
+    lastBuyBlock: "300 BLOCKS",
     actions: "DEPOSIT",
   },
 ];
@@ -50,12 +50,16 @@ type StrategiesProps = {
 };
 
 const Strategies: React.FC<StrategiesProps> = ({ onActionClick }) => {
-  const [isModalOpen, setModalOpen] = useState(false); // 2. Maintain a state
+  const [isDepositModalOpen, setDepositModalOpen] = useState(false); // 2. Maintain a state
   const modalRef = useRef<HTMLDivElement | null>(null);
 
+  const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(
+    null
+  );
   const handleActionClick = (strategy: Strategy) => {
     onActionClick(); // call the parent's action
-    setModalOpen(true); // open the modal
+    setSelectedStrategy(strategy); // set the selected strategy
+    setDepositModalOpen(true); // open the modal
   };
 
   return (
@@ -74,11 +78,11 @@ const Strategies: React.FC<StrategiesProps> = ({ onActionClick }) => {
         <tbody>
           {strategiesData.map((strategy, index) => (
             <tr key={index}>
-              <td>{strategy.buying}</td>
-              <td>{strategy.paying}</td>
+              <td>{strategy.buyingToken}</td>
+              <td>{strategy.paymentToken}</td>
               <td>{strategy.dex}</td>
-              <td>{strategy.timePerBuy}</td>
-              <td>{strategy.avgFeesPerBuy}</td>
+              <td>{strategy.blocksPerPeriod}</td>
+              <td>{strategy.lastBuyBlock}</td>
               <td>
                 <button onClick={() => handleActionClick(strategy)}>
                   DEPOSIT
@@ -88,7 +92,11 @@ const Strategies: React.FC<StrategiesProps> = ({ onActionClick }) => {
           ))}
         </tbody>
       </table>
-      <DepositModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} />
+      <DepositModal
+        isOpen={isDepositModalOpen}
+        onClose={() => setDepositModalOpen(false)}
+        selectedStrategy={selectedStrategy}
+      />
     </>
   );
 };
