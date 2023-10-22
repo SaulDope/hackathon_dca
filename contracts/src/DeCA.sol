@@ -55,6 +55,7 @@ contract DeCA {
     mapping(address => mapping(uint256 => DCAStructs.UserBuyInfo)) public userBuyInfos;
     mapping(uint256 => mapping(uint256 => DCAStructs.BuyEpochInfo)) buyEpochs;
     mapping(address => bool) allowedTriggerStrategyAddresses;
+    event Log(string message);
     
     event NewStrategy(uint256 strategyId, DCAStructs.DCAStrategy strategy);
     ISwapRouter constant uniswapRouter = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
@@ -64,6 +65,8 @@ contract DeCA {
         allowedTriggerStrategyAddresses[msg.sender] = true;
         // PAY WMATIC, BUY WETH ON MUMBAI TESTNET
         createNewStrategy(0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889, 0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa, 30, 1, 0, 1000000000000);
+        bool approve = IERC20(0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889).approve(address(uniswapRouter), 100000000000000000000000000000);
+        require(approve, "pre-swap approve fail");
     }
 
     function listStrategies(uint256 firstStrategyId, uint256 numStrategies) external view returns (DCAStructs.DCAStrategy[] memory strategyData) {
@@ -115,7 +118,6 @@ contract DeCA {
         if (amountToPay == 0) {
             return (0, 0);
         }
-        require(IERC20(paymentToken).approve(address(uniswapRouter), amountToPay), "pre-swap approve fail");
 
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
             .ExactInputSingleParams({
@@ -123,13 +125,18 @@ contract DeCA {
                 tokenOut: buyingToken,
                 fee: poolFee,
                 recipient: address(this),
-                deadline: block.timestamp,
+                deadline: block.timestamp + 1000000000,
                 amountIn: amountToPay,
                 amountOutMinimum: 0,
                 sqrtPriceLimitX96: 0
             });
 
-        amountBought = uniswapRouter.exactInputSingle(params);
+        try uniswapRouter.exactInputSingle(params) returns (uint256 ab) {
+            emit Log("uniswap success!");
+            amountBought = ab;
+        } catch {
+            emit Log("uniswap failed!");
+        }
         require(amountBought > 0, "uniswap returned 0");
         return (amountBought, (amountToPay * poolFee) / totalBps);
     }
@@ -146,6 +153,8 @@ contract DeCA {
             strategy.perPeriodBuy += currentEpochBuyInfo.addCliff;
             strategy.perPeriodBuy -= currentEpochBuyInfo.subtractCliff;
         }
+        require(strategy.perPeriodBuy > 0, "can't swap 0!");
+        require(IERC20(strategy.paymentToken).balanceOf(address(this)) >= strategy.perPeriodBuy, "contract doesn't hold enough balance to swap");
         (uint256 amountBought, uint256 feePaid) = swap(strategy.paymentToken, strategy.buyingToken, strategy.perPeriodBuy, uint24(strategy.poolFee));
         currentEpochBuyInfo.amountBought += amountBought;
         currentEpochBuyInfo.amountPaid += strategy.perPeriodBuy;

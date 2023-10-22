@@ -139,9 +139,15 @@ cast send $DCACONTRACT "createNewStrategy(address, address, uint256, uint256, ui
 
 cast call $DCACONTRACT "listStrategies(uint256, uint256)" 0 1 -r https://rpc.ankr.com/polygon_mumbai
 
+cast call $DCACONTRACT "listUserPositions(address)" 0xdf9e308622E1B6aCd29Fa65d3e92f12Bb1419f9d -r https://rpc.ankr.com/polygon_mumbai
+
 ### WMATIC APPROVE
 
 cast send 0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889 "approve(address, uint256)" $DCACONTRACT 100000000000000000 --private-key $UPKEY -r https://rpc.ankr.com/polygon_mumbai
+
+cast call 0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889 "balanceOf(address)" $DCACONTRACT -r https://rpc.ankr.com/polygon_mumbai
+
+cast call 0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889 "allowance(address, address)" $DCACONTRACT 0xE592427A0AEce92De3Edee1F18E0157C05861564 -r https://rpc.ankr.com/polygon_mumbai
 
 ### userUpdateStrategy(uint256 strategyId, uint256 newBuyAmount, uint256 desiredPaymentBalance, uint256 epochsToBuy)
 
@@ -157,3 +163,14 @@ cast rpc anvil_setBalance 0xceF7a02C77B2Ad2c262B2eE232B89002f1A9a5aB 10000000000
 https://eth-sepolia.g.alchemy.com/v2/demo
 
 https://rpc.ankr.com/eth_goerli
+
+
+MANUAL DEBUGGING SWAP
+
+approve hella for uniswap router
+
+cast send 0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889 "approve(address, uint256)" 0xE592427A0AEce92De3Edee1F18E0157C05861564 100000000000000000 --private-key $UPKEY -r https://rpc.ankr.com/polygon_mumbai
+
+cast send 0xE592427A0AEce92De3Edee1F18E0157C05861564 "exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))" "(0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889,0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa,0,0xdf9e308622E1B6aCd29Fa65d3e92f12Bb1419f9d,1000000000000000000000,10000000000,0)" --private-key $UPKEY -r https://rpc.ankr.com/polygon_mumbai
+
+["0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889", "0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa", 0, "0xceF7a02C77B2Ad2c262B2eE232B89002f1A9a5aB", 10000000000000000000000000000, 100000000, 0]
