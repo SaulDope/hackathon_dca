@@ -1,23 +1,22 @@
-import { configureChains, createConfig } from 'wagmi'
-import { foundry, goerli, mainnet, sepolia } from 'wagmi/chains'
-import { CoinbaseWalletConnector } from 'wagmi/connectors/coinbaseWallet'
-import { InjectedConnector } from 'wagmi/connectors/injected'
-import { MetaMaskConnector } from 'wagmi/connectors/metaMask'
-import { WalletConnectConnector } from 'wagmi/connectors/walletConnect'
+import { configureChains, createConfig } from "wagmi";
+import { foundry, goerli, mainnet, sepolia, polygonMumbai } from "wagmi/chains";
+import { CoinbaseWalletConnector } from "wagmi/connectors/coinbaseWallet";
+import { InjectedConnector } from "wagmi/connectors/injected";
+import { MetaMaskConnector } from "wagmi/connectors/metaMask";
+import { WalletConnectConnector } from "wagmi/connectors/walletConnect";
+import { alchemyProvider } from "wagmi/providers/alchemy";
 
-import { publicProvider } from 'wagmi/providers/public'
+import { publicProvider } from "wagmi/providers/public";
 
-const walletConnectProjectId = '09ad5511d60f4b0228d881ecee1278ef'
+const walletConnectProjectId = "09ad5511d60f4b0228d881ecee1278ef";
 
 const { chains, publicClient, webSocketPublicClient } = configureChains(
+  [mainnet, ...(process.env.NODE_ENV === "development" ? [polygonMumbai] : [])],
   [
-    mainnet,
-    ...(process.env.NODE_ENV === 'development' ? [goerli, sepolia,foundry] : []),
-  ],
-  [
+    alchemyProvider({ apiKey: "a93XAR_koMW4UdPXrC0GvomcNfcjf6sq" }),
     publicProvider(),
-  ],
-)
+  ]
+);
 
 export const config = createConfig({
   autoConnect: true,
@@ -26,7 +25,7 @@ export const config = createConfig({
     new CoinbaseWalletConnector({
       chains,
       options: {
-        appName: 'wagmi',
+        appName: "wagmi",
       },
     }),
     new WalletConnectConnector({
@@ -45,4 +44,4 @@ export const config = createConfig({
   ],
   publicClient,
   webSocketPublicClient,
-})
+});

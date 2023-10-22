@@ -2,9 +2,22 @@
 
 import Tables from "../components/Tables";
 import { useAccount, useConnect } from "wagmi";
+import { deCaABI, useDeCaStrategyCounter } from "../generated";
+import { useState } from "react";
+
+const addrType = "ff";
+const polygonMumbaiContractAddr =
+  "0x9997C2a043E7135360dA1B44eEf62408A065295F" as `0x${typeof addrType}`;
+export function getContractConfig() {
+  return {
+    address: polygonMumbaiContractAddr,
+    abi: deCaABI,
+  };
+}
 
 export function Body() {
   const { connector, isConnected } = useAccount();
+
   return (
     <div>
       {isConnected ? (

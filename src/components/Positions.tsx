@@ -1,6 +1,15 @@
 import React, { useState, useRef, useEffect } from "react";
 import UpdateModal from "./UpdateModal";
 import CollectModal from "./CollectModal";
+import {
+  useDeCaListUserPositions,
+  useDeCaUserBuyInfos,
+  useDeCaWithdrawOrCollect,
+  usePrepareDeCaWithdrawOrCollect,
+} from "../generated";
+import { bigZero } from "./Tables";
+import { useAccount } from "wagmi";
+import { getContractConfig } from "./Body";
 
 type Position = {
   buying: string;
@@ -13,35 +22,11 @@ type Position = {
 
 const PositionsData: Position[] = [
   {
-    buying: "WBTC",
-    paying: "USDC",
-    buy: "$100/1D",
-    bought: "$200",
-    left: "8 (800 USDC)",
-    actions: "WITHDRAW",
-  },
-  {
-    buying: "ETH",
-    paying: "USDC",
-    buy: "$100/1W",
-    bought: "$100",
-    left: "9 (900 USDC)",
-    actions: "WITHDRAW",
-  },
-  {
-    buying: "UNI",
-    paying: "USDC",
-    buy: "$100/1H",
-    bought: "$300",
-    left: "7 (700 USDC)",
-    actions: "WITHDRAW",
-  },
-  {
-    buying: "LINK",
-    paying: "USDC",
-    buy: "$100/2D",
-    bought: "$400",
-    left: "6 (600 USDC)",
+    buying: "WETH",
+    paying: "WMATIC",
+    buy: "0.05/1MIN",
+    bought: "0.0143 WETH",
+    left: "8 (.4 WMATIC)",
     actions: "WITHDRAW",
   },
 ];
@@ -51,8 +36,11 @@ type PositionsProps = {
 };
 
 const Positions: React.FC<PositionsProps> = ({ onActionClick }) => {
+  const { address: userAddr } = useAccount();
   const [isUpdateModalOpen, setUpdateModalOpen] = useState(false);
   const [isCollectModalOpen, setCollectModalOpen] = useState(false);
+  const [positionsData, setPositionsData] = useState([]);
+  const contractConfig = getContractConfig();
 
   const handleUpdateClick = (position: Position) => {
     onActionClick();
@@ -63,6 +51,31 @@ const Positions: React.FC<PositionsProps> = ({ onActionClick }) => {
     onActionClick();
     setCollectModalOpen(true);
   };
+
+  const { config: withdrawPrepareConfig } = usePrepareDeCaWithdrawOrCollect({
+    args: [bigZero, userAddr, false],
+    ...contractConfig,
+  });
+  const collectWriter = useDeCaWithdrawOrCollect({
+    ...withdrawPrepareConfig,
+  });
+
+  const positionsDataRead = useDeCaListUserPositions({
+    args: [userAddr],
+    ...contractConfig,
+  });
+  useEffect(() => {
+    if (positionsDataRead.isSuccess) {
+      setPositionsData(
+        positionsDataRead != undefined && positionsDataRead.data != undefined
+          ? positionsDataRead.data
+          : []
+      );
+    }
+  }, [positionsDataRead.data, positionsDataRead.isSuccess]);
+
+  console.log(positionsDataRead);
+  console.log(positionsData);
 
   return (
     <>
@@ -82,31 +95,43 @@ const Positions: React.FC<PositionsProps> = ({ onActionClick }) => {
             <tr key={index}>
               <td>{position.buying}</td>
               <td>{position.paying}</td>
-              <td>{position.buy}</td>
-              <td>{position.bought}</td>
-              <td>{position.left}</td>
               <td>
+                {positionsData.length != 0
+                  ? (Number(positionsData[0].perBuyAmount) / 1e18).toFixed(5)
+                  : position.buy}
+              </td>
+              <td>
+                {positionsData.length != 0
+                  ? (Number(positionsData[0].buyingTokenOwed) / 1e18).toFixed(5)
+                  : position.bought}
+              </td>
+              <td>
+                {positionsData.length != 0
+                  ? (
+                      Number(positionsData[0].payingBalanceRemaining) / 1e18
+                    ).toFixed(5)
+                  : position.left}
+              </td>
+              {/* <td>
                 <button onClick={() => handleUpdateClick(position)}>
                   UPDATE
                 </button>
-              </td>
+              </td> */}
               <td>
-                <button onClick={() => handleCollectClick(position)}>
-                  COLLECT
-                </button>
+                <button onClick={() => collectWriter.write()}>COLLECT</button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      <UpdateModal
+      {/* <UpdateModal
         isOpen={isUpdateModalOpen}
         onClose={() => setUpdateModalOpen(false)}
-      />
-      <CollectModal
+      /> */}
+      {/* <CollectModal
         isOpen={isCollectModalOpen}
         onClose={() => setCollectModalOpen(false)}
-      />
+      /> */}
     </>
   );
 };

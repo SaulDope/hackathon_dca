@@ -60,6 +60,7 @@ contract DeCA {
     event Log(string message);
     
     event NewStrategy(uint256 strategyId, DCAStructs.DCAStrategy strategy);
+
     ISwapRouter public immutable uniswapRouter;
 
     constructor() {
@@ -67,7 +68,7 @@ contract DeCA {
         uniswapRouter = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
         allowedTriggerStrategyAddresses[msg.sender] = true;
         // PAY WMATIC, BUY WETH ON MUMBAI TESTNET
-        createNewStrategy(0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889, 0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa, 30, 1, 3000, 1000000000000);
+        createNewStrategy(0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889, 0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa, 30, 1, 30, 1000000000000);
         // bool approve = IERC20(0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889).approve(address(uniswapRouter), 100000000000000000000000000000);
         // require(approve, "pre-swap approve fail");
     }
@@ -153,7 +154,7 @@ contract DeCA {
         require(!strategy.disabled, "strategy disabled");
         require(block.number >= strategy.lastBuyBlock + strategy.blocksPerPeriod, "buy too early");
         uint256 currentEpochId = getCurrentEpoch(strategy);
-        DCAStructs.BuyEpochInfo storage currentEpochBuyInfo = buyEpochs[strategyId][currentEpochId];
+        DCAStructs.BuyEpochInfo memory currentEpochBuyInfo = buyEpochs[strategyId][currentEpochId];
         if (strategy.buyCounter % strategy.buysPerEpoch == 0) {
             strategy.perPeriodBuy += currentEpochBuyInfo.addCliff;
             strategy.perPeriodBuy -= currentEpochBuyInfo.subtractCliff;
@@ -343,14 +344,14 @@ contract DeCA {
                 uint256 returnedBalanceExceptingForTransitory = userInfo.buyBalance - (userInfo.perBuyAmount * strategy.buysPerEpoch);
                 userInfo.buyBalance = userInfo.perBuyAmount * strategy.buysPerEpoch;
                 strategy.paymentBalance -= returnedBalanceExceptingForTransitory;
-                IERC20(strategy.paymentToken).transfer(msg.sender, returnedBalanceExceptingForTransitory);
+                IERC20(strategy.paymentToken).transferFrom(address(this), msg.sender, returnedBalanceExceptingForTransitory);
             } else {
                 userInfo.lastBuyAmountForTransitoryEpoch = 0;
                 userInfo.enteringEpochId = currentEpoch;
                 uint256 returnedBalance = userInfo.buyBalance;
                 userInfo.buyBalance = 0;
                 strategy.paymentBalance -= returnedBalance;
-                IERC20(strategy.paymentToken).transfer(msg.sender, returnedBalance);
+                IERC20(strategy.paymentToken).transferFrom(address(this), msg.sender, returnedBalance);
             }
             userInfo.perBuyAmount = 0;
         } else {
@@ -359,7 +360,7 @@ contract DeCA {
         require(strategy.buyingBalance >= amountOwed, "don't have enough bought asset to send!");
         strategy.buyingBalance -= amountOwed;
 
-        IERC20(strategy.buyingToken).transfer(withdrawer, amountOwed);
+        IERC20(strategy.buyingToken).transferFrom(address(this), withdrawer, amountOwed);
     }
 
     /*
