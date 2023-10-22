@@ -121,7 +121,7 @@ Good to know:
 
 - polygon blocktime 2s
 
-forge create src/DeCA.sol:DeCA --private-key=$PKEY -r https://rpc.ankr.com/polygon_mumbai
+forge create DeCA --private-key=$PKEY -r https://rpc.ankr.com/polygon_mumbai
 
 ### createNewStrategy(address paymentToken, address buyingToken, uint256 blocksPerPeriod, uint256 buysPerEpoch, uint256 poolFee, uint256 minUserBuy)
 
@@ -157,13 +157,16 @@ cast send $DCACONTRACT "userUpdateStrategy(uint256, uint256, uint256, uint256)" 
 
 cast send $DCACONTRACT "triggerStrategyBuy(uint256)" 0 --private-key $PKEY -r https://rpc.ankr.com/polygon_mumbai
 
-
 cast rpc anvil_setBalance 0xceF7a02C77B2Ad2c262B2eE232B89002f1A9a5aB 1000000000000000000 --rpc-url $RPC
+
+
+withdrawOrCollect(uint256 strategyId, address withdrawer, bool shouldWithdrawRemaining)
+
+cast send $DCACONTRACT "withdrawOrCollect(uint256,address,bool)" 0 0xdf9e308622E1B6aCd29Fa65d3e92f12Bb1419f9d false --private-key $UPKEY -r https://rpc.ankr.com/polygon_mumbai
 
 https://eth-sepolia.g.alchemy.com/v2/demo
 
 https://rpc.ankr.com/eth_goerli
-
 
 MANUAL DEBUGGING SWAP
 

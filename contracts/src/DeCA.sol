@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import {IERC20} from 'forge-std/interfaces/IERC20.sol';
-import 'v3-periphery/contracts/interfaces/ISwapRouter.sol';
-import 'v3-periphery/contracts/libraries/TransferHelper.sol';
+// import {IERC20} from 'forge-std/interfaces/IERC20.sol';
+import '@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol';
+import '@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol';
 
 library DCAStructs {
 
@@ -60,15 +60,16 @@ contract DeCA {
     event Log(string message);
     
     event NewStrategy(uint256 strategyId, DCAStructs.DCAStrategy strategy);
-    ISwapRouter constant uniswapRouter = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
+    ISwapRouter public immutable uniswapRouter;
 
     constructor() {
         owner = msg.sender;
+        uniswapRouter = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
         allowedTriggerStrategyAddresses[msg.sender] = true;
         // PAY WMATIC, BUY WETH ON MUMBAI TESTNET
-        createNewStrategy(0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889, 0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa, 30, 1, 0, 1000000000000);
-        bool approve = IERC20(0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889).approve(address(uniswapRouter), 100000000000000000000000000000);
-        require(approve, "pre-swap approve fail");
+        createNewStrategy(0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889, 0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa, 30, 1, 3000, 1000000000000);
+        // bool approve = IERC20(0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889).approve(address(uniswapRouter), 100000000000000000000000000000);
+        // require(approve, "pre-swap approve fail");
     }
 
     function listStrategies(uint256 firstStrategyId, uint256 numStrategies) external view returns (DCAStructs.DCAStrategy[] memory strategyData) {
@@ -121,6 +122,8 @@ contract DeCA {
             return (0, 0);
         }
 
+        TransferHelper.safeApprove(paymentToken, address(uniswapRouter), amountToPay);
+
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
             .ExactInputSingleParams({
                 tokenIn: paymentToken,
@@ -150,7 +153,7 @@ contract DeCA {
         require(!strategy.disabled, "strategy disabled");
         require(block.number >= strategy.lastBuyBlock + strategy.blocksPerPeriod, "buy too early");
         uint256 currentEpochId = getCurrentEpoch(strategy);
-        DCAStructs.BuyEpochInfo memory currentEpochBuyInfo = buyEpochs[strategyId][currentEpochId];
+        DCAStructs.BuyEpochInfo storage currentEpochBuyInfo = buyEpochs[strategyId][currentEpochId];
         if (strategy.buyCounter % strategy.buysPerEpoch == 0) {
             strategy.perPeriodBuy += currentEpochBuyInfo.addCliff;
             strategy.perPeriodBuy -= currentEpochBuyInfo.subtractCliff;
@@ -185,7 +188,7 @@ contract DeCA {
             poolFee: poolFee,
             disabled: false,
             depositsDisabled: false,
-            lastBuyBlock: block.number,
+            lastBuyBlock: 0,
             minUserBuy: minUserBuy
         });
         strategyCounter += 1;
@@ -340,14 +343,14 @@ contract DeCA {
                 uint256 returnedBalanceExceptingForTransitory = userInfo.buyBalance - (userInfo.perBuyAmount * strategy.buysPerEpoch);
                 userInfo.buyBalance = userInfo.perBuyAmount * strategy.buysPerEpoch;
                 strategy.paymentBalance -= returnedBalanceExceptingForTransitory;
-                IERC20(strategy.paymentToken).transferFrom(address(this), msg.sender, returnedBalanceExceptingForTransitory);
+                IERC20(strategy.paymentToken).transfer(msg.sender, returnedBalanceExceptingForTransitory);
             } else {
                 userInfo.lastBuyAmountForTransitoryEpoch = 0;
                 userInfo.enteringEpochId = currentEpoch;
                 uint256 returnedBalance = userInfo.buyBalance;
                 userInfo.buyBalance = 0;
                 strategy.paymentBalance -= returnedBalance;
-                IERC20(strategy.paymentToken).transferFrom(address(this), msg.sender, returnedBalance);
+                IERC20(strategy.paymentToken).transfer(msg.sender, returnedBalance);
             }
             userInfo.perBuyAmount = 0;
         } else {
@@ -356,7 +359,7 @@ contract DeCA {
         require(strategy.buyingBalance >= amountOwed, "don't have enough bought asset to send!");
         strategy.buyingBalance -= amountOwed;
 
-        IERC20(strategy.buyingToken).transferFrom(address(this), withdrawer, amountOwed);
+        IERC20(strategy.buyingToken).transfer(withdrawer, amountOwed);
     }
 
     /*
@@ -419,38 +422,3 @@ contract DeCA {
     }
 
 }
-
-// interface ISwapRouter {
-//     struct ExactInputSingleParams {
-//         address tokenIn;
-//         address tokenOut;
-//         uint24 fee;
-//         address recipient;
-//         uint deadline;
-//         uint amountIn;
-//         uint amountOutMinimum;
-//         uint160 sqrtPriceLimitX96;
-//     }
-
-//     /// @notice Swaps amountIn of one token for as much as possible of another token
-//     /// @param params The parameters necessary for the swap, encoded as ExactInputSingleParams in calldata
-//     /// @return amountOut The amount of the received token
-//     function exactInputSingle(
-//         ExactInputSingleParams calldata params
-//     ) external payable returns (uint amountOut);
-
-//     struct ExactInputParams {
-//         bytes path;
-//         address recipient;
-//         uint deadline;
-//         uint amountIn;
-//         uint amountOutMinimum;
-//     }
-
-//     /// @notice Swaps amountIn of one token for as much as possible of another along the specified path
-//     /// @param params The parameters necessary for the multi-hop swap, encoded as ExactInputParams in calldata
-//     /// @return amountOut The amount of the received token
-//     function exactInput(
-//         ExactInputParams calldata params
-//     ) external payable returns (uint amountOut);
-// }
